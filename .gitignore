@@ -16,6 +16,3 @@ Thumbs.db
 # Local environment files
 .env
 .env.local
-
-# Opencode local config
-.opencode/
