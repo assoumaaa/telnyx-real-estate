@@ -1,0 +1,113 @@
+[2026-10-05T21:30:24.787Z] [unknown] ---> Running application from script (app.sh) ...
+[2026-10-05T21:30:24.890Z] [unknown] ---> Running application from script (app.sh) ...
+[2026-10-05T21:30:25.285Z] [info] INFO:root:Functions middleware invoking user function
+[2026-10-05T21:30:25.288Z] [info] INFO:root:function does not implement 'alive'. Using default implementation for liveness checks.
+[2026-10-05T21:30:25.289Z] [info] INFO:root:function does not implement 'ready'. Using default implementation for readiness checks.
+[2026-10-05T21:30:25.289Z] [info] INFO:palm-marina-mcp:Function starting
+[2026-10-05T21:30:25.289Z] [info] [2026-10-05 21:30:25 +0000] [1] [INFO] Running on http://[::]:8080 (CTRL + C to quit)
+[2026-10-05T21:30:25.289Z] [info] INFO:hypercorn.error:Running on http://[::]:8080 (CTRL + C to quit)
+[2026-10-05T21:30:25.447Z] [info] INFO:root:Functions middleware invoking user function
+[2026-10-05T21:30:25.448Z] [info] INFO:root:function does not implement 'alive'. Using default implementation for liveness checks.
+[2026-10-05T21:30:25.451Z] [info] INFO:root:function does not implement 'ready'. Using default implementation for readiness checks.
+[2026-10-05T21:30:25.451Z] [info] INFO:palm-marina-mcp:Function starting
+[2026-10-05T21:30:25.451Z] [info] [2026-10-05 21:30:25 +0000] [1] [INFO] Running on http://[::]:8080 (CTRL + C to quit)
+[2026-10-05T21:30:25.451Z] [info] INFO:hypercorn.error:Running on http://[::]:8080 (CTRL + C to quit)
+[2026-10-05T21:30:26.822Z] [unknown] ---> Running application from script (app.sh) ...
+[2026-10-05T21:30:26.916Z] [unknown] ---> Running application from script (app.sh) ...
+[2026-10-05T21:30:27.150Z] [unknown] ---> Running application from script (app.sh) ...
+[2026-10-05T21:30:27.553Z] [info] INFO:root:Functions middleware invoking user function
+[2026-10-05T21:30:27.554Z] [info] INFO:root:function does not implement 'alive'. Using default implementation for liveness checks.
+[2026-10-05T21:30:27.557Z] [info] INFO:root:function does not implement 'ready'. Using default implementation for readiness checks.
+[2026-10-05T21:30:27.557Z] [info] INFO:palm-marina-mcp:Function starting
+[2026-10-05T21:30:27.557Z] [info] [2026-10-05 21:30:27 +0000] [1] [INFO] Running on http://[::]:8080 (CTRL + C to quit)
+[2026-10-05T21:30:27.557Z] [info] INFO:hypercorn.error:Running on http://[::]:8080 (CTRL + C to quit)
+[2026-10-05T21:30:27.628Z] [unknown] ---> Running application from script (app.sh) ...
+[2026-10-05T21:30:27.631Z] [info] INFO:root:Functions middleware invoking user function
+[2026-10-05T21:30:27.632Z] [info] INFO:root:function does not implement 'alive'. Using default implementation for liveness checks.
+[2026-10-05T21:30:27.634Z] [info] INFO:root:function does not implement 'ready'. Using default implementation for readiness checks.
+[2026-10-05T21:30:27.635Z] [info] INFO:palm-marina-mcp:Function starting
+[2026-10-05T21:30:27.636Z] [info] [2026-10-05 21:30:27 +0000] [1] [INFO] Running on http://[::]:8080 (CTRL + C to quit)
+[2026-10-05T21:30:27.636Z] [info] INFO:hypercorn.error:Running on http://[::]:8080 (CTRL + C to quit)
+[2026-10-05T21:30:28.185Z] [unknown] ---> Running application from script (app.sh) ...
+[2026-10-05T21:30:28.518Z] [info] INFO:root:Functions middleware invoking user function
+[2026-10-05T21:30:28.518Z] [info] INFO:root:function does not implement 'alive'. Using default implementation for liveness checks.
+[2026-10-05T21:30:28.518Z] [info] INFO:root:function does not implement 'ready'. Using default implementation for readiness checks.
+[2026-10-05T21:30:28.524Z] [info] INFO:palm-marina-mcp:Function starting
+[2026-10-05T21:30:28.529Z] [info] [2026-10-05 21:30:28 +0000] [1] [INFO] Running on http://[::]:8080 (CTRL + C to quit)
+[2026-10-05T21:30:28.532Z] [info] INFO:hypercorn.error:Running on http://[::]:8080 (CTRL + C to quit)
+[2026-10-05T21:30:29.143Z] [info] INFO:root:Functions middleware invoking user function
+[2026-10-05T21:30:29.146Z] [info] INFO:root:function does not implement 'alive'. Using default implementation for liveness checks.
+[2026-10-05T21:30:29.148Z] [info] INFO:root:function does not implement 'ready'. Using default implementation for readiness checks.
+[2026-10-05T21:30:29.153Z] [info] INFO:palm-marina-mcp:Function starting
+[2026-10-05T21:30:29.159Z] [info] [2026-10-05 21:30:29 +0000] [1] [INFO] Running on http://[::]:8080 (CTRL + C to quit)
+[2026-10-05T21:30:29.159Z] [info] INFO:hypercorn.error:Running on http://[::]:8080 (CTRL + C to quit)
+[2026-10-05T21:30:29.600Z] [info] INFO:root:Functions middleware invoking user function
+[2026-10-05T21:30:29.602Z] [info] INFO:root:function does not implement 'alive'. Using default implementation for liveness checks.
+[2026-10-05T21:30:29.603Z] [info] INFO:root:function does not implement 'ready'. Using default implementation for readiness checks.
+[2026-10-05T21:30:29.607Z] [info] INFO:palm-marina-mcp:Function starting
+[2026-10-05T21:30:29.610Z] [info] [2026-10-05 21:30:29 +0000] [1] [INFO] Running on http://[::]:8080 (CTRL + C to quit)
+[2026-10-05T21:30:29.610Z] [info] INFO:hypercorn.error:Running on http://[::]:8080 (CTRL + C to quit)
+[2026-10-05T21:30:32.745Z] [unknown] ---> Running application from script (app.sh) ...
+[2026-10-05T21:30:33.339Z] [info] INFO:root:Functions middleware invoking user function
+[2026-10-05T21:30:33.340Z] [info] INFO:root:function does not implement 'alive'. Using default implementation for liveness checks.
+[2026-10-05T21:30:33.343Z] [info] INFO:root:function does not implement 'ready'. Using default implementation for readiness checks.
+[2026-10-05T21:30:33.343Z] [info] INFO:palm-marina-mcp:Function starting
+[2026-10-05T21:30:33.343Z] [info] [2026-10-05 21:30:33 +0000] [1] [INFO] Running on http://[::]:8080 (CTRL + C to quit)
+[2026-10-05T21:30:33.343Z] [info] INFO:hypercorn.error:Running on http://[::]:8080 (CTRL + C to quit)
+[2026-10-05T21:30:35.464Z] [info] INFO:palm-marina-mcp:{"request_id": "[redacted]", "method": "GET", "path": "/", "tool": null, "arguments": null, "outcome": "ok", "error": null, "count": null, "status": 200, "latency_ms": 2.53}
+[2026-10-05T21:30:35.609Z] [unknown] ---> Running application from script (app.sh) ...
+[2026-10-05T21:30:36.053Z] [info] INFO:root:Functions middleware invoking user function
+[2026-10-05T21:30:36.053Z] [info] INFO:root:function does not implement 'alive'. Using default implementation for liveness checks.
+[2026-10-05T21:30:36.053Z] [info] INFO:root:function does not implement 'ready'. Using default implementation for readiness checks.
+[2026-10-05T21:30:36.054Z] [info] INFO:palm-marina-mcp:Function starting
+[2026-10-05T21:30:36.055Z] [info] [2026-10-05 21:30:36 +0000] [1] [INFO] Running on http://[::]:8080 (CTRL + C to quit)
+[2026-10-05T21:30:36.055Z] [info] INFO:hypercorn.error:Running on http://[::]:8080 (CTRL + C to quit)
+[2026-10-05T21:30:37.718Z] [unknown] ---> Running application from script (app.sh) ...
+[2026-10-05T21:30:38.225Z] [info] INFO:root:Functions middleware invoking user function
+[2026-10-05T21:30:38.225Z] [info] INFO:root:function does not implement 'alive'. Using default implementation for liveness checks.
+[2026-10-05T21:30:38.225Z] [info] INFO:root:function does not implement 'ready'. Using default implementation for readiness checks.
+[2026-10-05T21:30:38.225Z] [info] INFO:palm-marina-mcp:Function starting
+[2026-10-05T21:30:38.226Z] [info] [2026-10-05 21:30:38 +0000] [1] [INFO] Running on http://[::]:8080 (CTRL + C to quit)
+[2026-10-05T21:30:38.226Z] [info] INFO:hypercorn.error:Running on http://[::]:8080 (CTRL + C to quit)
+[2026-10-05T21:30:41.987Z] [unknown] ---> Running application from script (app.sh) ...
+[2026-10-05T21:30:42.375Z] [unknown] ---> Running application from script (app.sh) ...
+[2026-10-05T21:30:42.546Z] [unknown] ---> Running application from script (app.sh) ...
+[2026-10-05T21:30:42.873Z] [info] INFO:root:Functions middleware invoking user function
+[2026-10-05T21:30:42.873Z] [info] INFO:root:function does not implement 'alive'. Using default implementation for liveness checks.
+[2026-10-05T21:30:42.873Z] [info] INFO:root:function does not implement 'ready'. Using default implementation for readiness checks.
+[2026-10-05T21:30:42.873Z] [info] INFO:palm-marina-mcp:Function starting
+[2026-10-05T21:30:42.873Z] [info] [2026-10-05 21:30:42 +0000] [1] [INFO] Running on http://[::]:8080 (CTRL + C to quit)
+[2026-10-05T21:30:42.873Z] [info] INFO:hypercorn.error:Running on http://[::]:8080 (CTRL + C to quit)
+[2026-10-05T21:30:43.483Z] [info] INFO:root:Functions middleware invoking user function
+[2026-10-05T21:30:43.485Z] [info] INFO:root:function does not implement 'alive'. Using default implementation for liveness checks.
+[2026-10-05T21:30:43.486Z] [info] INFO:root:function does not implement 'ready'. Using default implementation for readiness checks.
+[2026-10-05T21:30:43.491Z] [info] INFO:palm-marina-mcp:Function starting
+[2026-10-05T21:30:43.493Z] [info] [2026-10-05 21:30:43 +0000] [1] [INFO] Running on http://[::]:8080 (CTRL + C to quit)
+[2026-10-05T21:30:43.494Z] [info] INFO:hypercorn.error:Running on http://[::]:8080 (CTRL + C to quit)
+[2026-10-05T21:30:44.076Z] [unknown] ---> Running application from script (app.sh) ...
+[2026-10-05T21:30:44.081Z] [info] INFO:root:Functions middleware invoking user function
+[2026-10-05T21:30:44.082Z] [info] INFO:root:function does not implement 'alive'. Using default implementation for liveness checks.
+[2026-10-05T21:30:44.083Z] [info] INFO:root:function does not implement 'ready'. Using default implementation for readiness checks.
+[2026-10-05T21:30:44.087Z] [info] INFO:palm-marina-mcp:Function starting
+[2026-10-05T21:30:44.089Z] [info] [2026-10-05 21:30:44 +0000] [1] [INFO] Running on http://[::]:8080 (CTRL + C to quit)
+[2026-10-05T21:30:44.089Z] [info] INFO:hypercorn.error:Running on http://[::]:8080 (CTRL + C to quit)
+[2026-10-05T21:30:45.989Z] [info] INFO:root:Functions middleware invoking user function
+[2026-10-05T21:30:45.989Z] [info] INFO:root:function does not implement 'alive'. Using default implementation for liveness checks.
+[2026-10-05T21:30:45.989Z] [info] INFO:root:function does not implement 'ready'. Using default implementation for readiness checks.
+[2026-10-05T21:30:45.993Z] [info] INFO:palm-marina-mcp:Function starting
+[2026-10-05T21:30:45.995Z] [info] [2026-10-05 21:30:45 +0000] [1] [INFO] Running on http://[::]:8080 (CTRL + C to quit)
+[2026-10-05T21:30:45.999Z] [info] INFO:hypercorn.error:Running on http://[::]:8080 (CTRL + C to quit)
+[2026-10-05T21:31:25.086Z] [info] INFO:palm-marina-mcp:Function stopping
+[2026-10-05T21:31:25.145Z] [info] INFO:palm-marina-mcp:Function stopping
+[2026-10-05T21:31:27.095Z] [info] INFO:palm-marina-mcp:Function stopping
+[2026-10-05T21:31:27.097Z] [info] INFO:palm-marina-mcp:Function stopping
+[2026-10-05T21:31:28.179Z] [info] INFO:palm-marina-mcp:Function stopping
+[2026-10-05T21:31:29.184Z] [info] INFO:palm-marina-mcp:Function stopping
+[2026-10-05T21:31:29.189Z] [info] INFO:palm-marina-mcp:Function stopping
+[2026-10-05T21:31:31.578Z] [info] INFO:palm-marina-mcp:{"request_id": "[redacted]", "method": "GET", "path": "/", "tool": null, "arguments": null, "outcome": "ok", "error": null, "count": null, "status": 200, "latency_ms": 0.96}
+[2026-10-05T21:32:25.548Z] [info] INFO:palm-marina-mcp:{"request_id": "[redacted]", "method": "GET", "path": "/health", "tool": null, "arguments": null, "outcome": "ok", "error": null, "count": null, "status": 200, "latency_ms": 1.45}
+[2026-10-05T21:32:26.260Z] [info] INFO:palm-marina-mcp:{"request_id": "[redacted]", "method": "GET", "path": "/mcp/tools/list", "tool": null, "arguments": null, "outcome": "ok", "error": null, "count": null, "status": 200, "latency_ms": 1.59}
+[2026-10-05T21:32:27.018Z] [info] INFO:palm-marina-mcp:{"request_id": "[redacted]", "method": "POST", "path": "/mcp/tools/call", "tool": "search_listings", "arguments": {"purpose": "buy", "area": "Marina", "bedrooms": 2, "budget": 3000000}, "outcome": "ok", "error": null, "count": 1, "status": 200, "latency_ms": 1.99}
+[2026-10-05T21:33:31.333Z] [info] INFO:palm-marina-mcp:{"request_id": "[redacted]", "method": "POST", "path": "/", "tool": null, "arguments": null, "outcome": "not_found", "error": "not found", "count": null, "status": 404, "latency_ms": 0.84}
+[2026-10-05T21:33:37.903Z] [info] INFO:palm-marina-mcp:{"request_id": "[redacted]", "method": "POST", "path": "/", "tool": null, "arguments": null, "outcome": "not_found", "error": "not found", "count": null, "status": 404, "latency_ms": 2.09}
+[2026-10-05T21:34:00.414Z] [info] INFO:palm-marina-mcp:{"request_id": "[redacted]", "method": "POST", "path": "/", "tool": null, "arguments": null, "outcome": "not_found", "error": "not found", "count": null, "status": 404, "latency_ms": 2.91}
