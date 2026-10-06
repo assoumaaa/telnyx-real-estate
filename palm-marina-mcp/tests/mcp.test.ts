@@ -8,6 +8,11 @@ import { actorNameFor } from "../src/tools/viewings";
 import seedListings from "../data/listings.json";
 
 const TEST_TOKEN = "test-secret-token";
+
+// On Edge the secret arrives as an environment variable, so the tests set one too.
+beforeEach(() => {
+	vi.stubEnv("MCP_TOKEN", TEST_TOKEN);
+});
 const SEED_LISTINGS_JSON = JSON.stringify(seedListings);
 
 class InMemoryStorage {
@@ -115,7 +120,6 @@ function makeFakeEnv(opts?: { storage?: InMemoryStorage; kv?: FakeKv; bucket?: F
 	const kv = opts?.kv ?? new FakeKv();
 	const bucket = opts?.bucket ?? seededBucket();
 	return {
-		MCP_TOKEN: TEST_TOKEN,
 		CALENDAR: {
 			idFromName: (name: string) => ({
 				id: name,
@@ -573,5 +577,13 @@ describe("admin routes", () => {
 describe("actorNameFor", () => {
 	it("makes a Dapr-safe actor name from an agent's full name", () => {
 		expect(actorNameFor("Layla Al Mansoori")).toBe("agent-layla-al-mansoori");
+	});
+});
+
+describe("missing secret", () => {
+	it("rejects every MCP request when MCP_TOKEN is not set", async () => {
+		vi.stubEnv("MCP_TOKEN", "");
+		const { status } = await call("/mcp", "POST", { jsonrpc: "2.0", id: 1, method: "ping" });
+		expect(status).toBe(401);
 	});
 });

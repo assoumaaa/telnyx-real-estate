@@ -5,5 +5,4 @@ export interface Env {
 	CALENDAR: ActorNamespace<ViewingCalendar>;
 	CACHE: KvNamespace;
 	FILES: CloudStorageBucket;
-	MCP_TOKEN: string;
 }

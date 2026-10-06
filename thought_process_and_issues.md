@@ -255,3 +255,33 @@ the key. The next validation went straight through:
 
 Without the reason in the log I would have kept regenerating tokens for nothing. Adding this kind of detail to log
 lines from the start is something I'll do next time.
+
+## 10. Moving the MCP server to TypeScript
+
+For the viewings I needed a Stateful Actor, but actors only work with TypeScript, and my MCP server was in Python.
+
+I could have still used Python and called a small TypeScript actor over HTTP, but that adds an extra request
+(more latency) and another public URL that I would need to protect with a second token.
+
+I did more research into Edge Compute with TypeScript and saw the power of everything being injected at runtime.
+The actor, KV and the storage bucket are just there in `env` (`env.CALENDAR`, `env.CACHE`, `env.FILES`), and Telnyx
+handles the credentials. So I decided to shift to one centralized MCP server in TypeScript. This also sounded more
+interesting to play around with. The old Python version is still in the git history, and the dynamic variables
+webhook stays in Python because it doesn't need any of this.
+
+I also wanted to discover Telnyx Cloud Storage, so I used it to mimic a production database. Our `listings.json`
+lives in a bucket, like an export from the brokerage's CRM. The MCP server fetches it from there and keeps a copy
+in KV for one hour, so most searches don't touch the bucket.
+
+Why actors for the bookings: the problem is double booking. If two callers ask for Layla's Saturday 4pm viewing at
+the same moment, a normal function could check "is it free?" for both, get yes twice, and book the same slot two
+times. KV wouldn't fix it either, because it has no locks and the last write just wins.
+
+An actor solves this because it is single threaded. Each agent has their own actor (one for Layla, one for Omar,
+one for Sara), and each actor handles one call at a time. So the two bookings for Layla run one after the other:
+the first one books the slot, and the second one sees it's already taken and gets offered the next free times. I
+don't need any locks for this, the platform does it for me. And because every agent has their own actor, a booking
+with Omar never has to wait behind a booking with Layla.
+
+Next plan would be maybe sending brochures to clients, like PDFs through WhatsApp or email. I still need to look
+into that.

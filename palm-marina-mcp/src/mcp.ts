@@ -83,6 +83,7 @@ async function callTool(
 		typeof params.arguments === "object" && params.arguments !== null
 			? (params.arguments as Record<string, unknown>)
 			: {};
+
 	log.tool = toolName;
 	log.arguments = allowlistedArgs(toolArgs);
 

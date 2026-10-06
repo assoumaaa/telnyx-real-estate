@@ -1,8 +1,7 @@
-import type { Env } from "./env";
-
 /** The reason is logged to diagnose failures, so it must never include the token itself. */
-export function authFailureReason(req: Request, env: Env): string | null {
-	const expected = env.MCP_TOKEN ?? "";
+export function authFailureReason(req: Request): string | null {
+	// Edge injects every secret as an environment variable; it is never a property on env.
+	const expected = process.env.MCP_TOKEN ?? "";
 	if (!expected) {
 		return "MCP_TOKEN secret not set";
 	}
