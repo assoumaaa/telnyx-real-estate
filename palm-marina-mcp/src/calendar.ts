@@ -26,49 +26,38 @@ export type BookResult =
 
 export type CancelResult = { status: "cancelled"; bookingId: string } | { status: "not_found" };
 
-const DUBAI_OFFSET = 4;
-const SLOT_HOURS = [10, 12, 14, 16] as const;
-const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-const MONTHS = [
-	"January",
-	"February",
-	"March",
-	"April",
-	"May",
-	"June",
-	"July",
-	"August",
-	"September",
-	"October",
-	"November",
-	"December",
-];
+const DUBAI_OFFSET_HOURS = 4; // Dubai has no daylight saving, so the offset never changes
+const SLOT_HOURS = [10, 12, 14, 16];
 
-function pad2(n: number): string {
-	return String(n).padStart(2, "0");
-}
+// Built-in Intl handles the time zone and the names: "Saturday 10 October at 4 pm".
+const spokenTime = new Intl.DateTimeFormat("en-GB", {
+	timeZone: "Asia/Dubai",
+	weekday: "long",
+	day: "numeric",
+	month: "long",
+	hour: "numeric",
+	hour12: true,
+});
 
+/** Viewing slots for the next `daysAhead` days, Dubai time, skipping times already past. */
 export function generateSlots(now: Date, daysAhead = 7): Slot[] {
+	const offsetMs = DUBAI_OFFSET_HOURS * 3_600_000;
+	const dubaiToday = new Date(now.getTime() + offsetMs); // its UTC fields read as Dubai's date
 	const slots: Slot[] = [];
-	const nowMs = now.getTime();
-	const dubaiNow = new Date(nowMs + DUBAI_OFFSET * 3_600_000);
 
-	for (let dayOffset = 0; dayOffset <= daysAhead; dayOffset++) {
-		const d = new Date(dubaiNow.getTime() + dayOffset * 86_400_000);
-		const year = d.getUTCFullYear();
-		const month = d.getUTCMonth() + 1;
-		const day = d.getUTCDate();
-
+	for (let day = 0; day <= daysAhead; day++) {
 		for (const hour of SLOT_HOURS) {
-			const utcMs = Date.UTC(year, month - 1, day, hour - DUBAI_OFFSET, 0, 0, 0);
-			if (utcMs <= nowMs) continue;
+			const utcMs = Date.UTC(
+				dubaiToday.getUTCFullYear(),
+				dubaiToday.getUTCMonth(),
+				dubaiToday.getUTCDate() + day, // Date.UTC rolls over month and year ends
+				hour - DUBAI_OFFSET_HOURS
+			);
+			if (utcMs <= now.getTime()) continue;
 
-			const id = `${year}-${pad2(month)}-${pad2(day)}T${pad2(hour)}:00+0${DUBAI_OFFSET}:00`;
-			const wd = WEEKDAYS[new Date(utcMs).getUTCDay()];
-			const period = hour >= 12 ? "PM" : "AM";
-			const hour12 = hour % 12 || 12;
-			const voice = `${wd} ${day} ${MONTHS[month - 1]} at ${hour12} ${period}`;
-			slots.push({ id, voice, utcMs });
+			// The exact id the booking tools use, e.g. "2026-10-10T16:00+04:00".
+			const id = new Date(utcMs + offsetMs).toISOString().slice(0, 16) + "+04:00";
+			slots.push({ id, voice: spokenTime.format(utcMs), utcMs });
 		}
 	}
 
