@@ -20,7 +20,9 @@ const LOGGABLE_ARGS = new Set([
 export function allowlistedArgs(args: Record<string, unknown>): Record<string, unknown> {
 	const out: Record<string, unknown> = {};
 	for (const [k, v] of Object.entries(args)) {
-		if (LOGGABLE_ARGS.has(k)) out[k] = v;
+		if (LOGGABLE_ARGS.has(k)) {
+			out[k] = v;
+		}
 	}
 	return out;
 }

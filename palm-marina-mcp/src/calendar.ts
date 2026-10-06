@@ -26,10 +26,8 @@ export type BookResult =
 
 export type CancelResult = { status: "cancelled"; bookingId: string } | { status: "not_found" };
 
-const DUBAI_OFFSET_HOURS = 4; // Dubai has no daylight saving, so the offset never changes
+const DUBAI_OFFSET_HOURS = 4;
 const SLOT_HOURS = [10, 12, 14, 16];
-
-// Built-in Intl handles the time zone and the names: "Saturday 10 October at 4 pm".
 const spokenTime = new Intl.DateTimeFormat("en-GB", {
 	timeZone: "Asia/Dubai",
 	weekday: "long",
@@ -39,10 +37,9 @@ const spokenTime = new Intl.DateTimeFormat("en-GB", {
 	hour12: true,
 });
 
-/** Viewing slots for the next `daysAhead` days, Dubai time, skipping times already past. */
 export function generateSlots(now: Date, daysAhead = 7): Slot[] {
 	const offsetMs = DUBAI_OFFSET_HOURS * 3_600_000;
-	const dubaiToday = new Date(now.getTime() + offsetMs); // its UTC fields read as Dubai's date
+	const dubaiToday = new Date(now.getTime() + offsetMs);
 	const slots: Slot[] = [];
 
 	for (let day = 0; day <= daysAhead; day++) {
@@ -50,12 +47,13 @@ export function generateSlots(now: Date, daysAhead = 7): Slot[] {
 			const utcMs = Date.UTC(
 				dubaiToday.getUTCFullYear(),
 				dubaiToday.getUTCMonth(),
-				dubaiToday.getUTCDate() + day, // Date.UTC rolls over month and year ends
+				dubaiToday.getUTCDate() + day,
 				hour - DUBAI_OFFSET_HOURS
 			);
-			if (utcMs <= now.getTime()) continue;
+			if (utcMs <= now.getTime()) {
+				continue;
+			}
 
-			// The exact id the booking tools use, e.g. "2026-10-10T16:00+04:00".
 			const id = new Date(utcMs + offsetMs).toISOString().slice(0, 16) + "+04:00";
 			slots.push({ id, voice: spokenTime.format(utcMs), utcMs });
 		}
@@ -85,7 +83,7 @@ export class ViewingCalendar extends StatefulActor {
 		if (!slot) {
 			return { status: "invalid_slot", nextSlots: freeSlots(bookings).slice(0, NEXT_SLOTS) };
 		}
-		// Safe without locks: the platform runs one call at a time per actor instance (one per agent).
+
 		if (bookings[slotId]) {
 			return { status: "slot_taken", slotId, nextSlots: freeSlots(bookings).slice(0, NEXT_SLOTS) };
 		}
@@ -99,7 +97,9 @@ export class ViewingCalendar extends StatefulActor {
 	async cancelViewing(bookingId: string): Promise<CancelResult> {
 		const bookings = await this.bookings();
 		const slotId = Object.keys(bookings).find((id) => bookings[id].bookingId === bookingId);
-		if (!slotId) return { status: "not_found" };
+		if (!slotId) {
+			return { status: "not_found" };
+		}
 		delete bookings[slotId];
 		await this.ctx.storage.put(STORAGE_KEY, bookings);
 		return { status: "cancelled", bookingId };

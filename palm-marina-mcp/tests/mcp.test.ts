@@ -37,8 +37,12 @@ class FakeKv {
 	private map = new Map<string, string>();
 	async get<T>(key: string, options?: { type?: "text" | "json" }): Promise<T | string | null> {
 		const v = this.map.get(key);
-		if (v === undefined) return null;
-		if (options?.type === "json") return JSON.parse(v) as T;
+		if (v === undefined) {
+			return null;
+		}
+		if (options?.type === "json") {
+			return JSON.parse(v) as T;
+		}
 		return v;
 	}
 	async put(key: string, value: string, _options?: { expirationTtl?: number }): Promise<void> {
@@ -68,13 +72,21 @@ class FakeBucket {
 	private map = new Map<string, string>();
 	private getThrows = false;
 	constructor(seed?: Record<string, string>, opts?: { getThrows?: boolean }) {
-		if (seed) for (const [k, v] of Object.entries(seed)) this.map.set(k, v);
-		if (opts?.getThrows) this.getThrows = true;
+		if (seed) {
+			for (const [k, v] of Object.entries(seed)) this.map.set(k, v);
+		}
+		if (opts?.getThrows) {
+			this.getThrows = true;
+		}
 	}
 	async get(key: string): Promise<unknown> {
-		if (this.getThrows) throw new Error("bucket is down for tests");
+		if (this.getThrows) {
+			throw new Error("bucket is down for tests");
+		}
 		const raw = this.map.get(key);
-		if (raw === undefined) return null;
+		if (raw === undefined) {
+			return null;
+		}
 		const body = new ReadableStream({
 			start(c) {
 				c.enqueue(new TextEncoder().encode(raw));
@@ -127,7 +139,9 @@ async function call(
 	env?: Env
 ): Promise<{ status: number; body: unknown }> {
 	const headers: Record<string, string> = {};
-	if (token) headers["Authorization"] = `Bearer ${token}`;
+	if (token) {
+		headers["Authorization"] = `Bearer ${token}`;
+	}
 	const init: RequestInit = { method, headers };
 	if (body !== undefined) {
 		init.body = typeof body === "string" ? body : JSON.stringify(body);
@@ -396,7 +410,9 @@ describe("calendar actor (in-memory storage)", () => {
 		const { slots } = await calendar.getAvailableSlots(1);
 		const slotId = slots[0].id;
 		const booked = await calendar.bookViewing(slotId, "James", "PMR-101");
-		if (booked.status !== "booked") throw new Error("expected booked");
+		if (booked.status !== "booked") {
+			throw new Error("expected booked");
+		}
 		const cancel = await calendar.cancelViewing(booked.bookingId);
 		expect(cancel.status).toBe("cancelled");
 		const rebook = await calendar.bookViewing(slotId, "Priya", "PMR-102");

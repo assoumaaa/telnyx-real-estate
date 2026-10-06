@@ -175,7 +175,9 @@ async function handleToolCall(
 	}
 
 	log.outcome = result.outcome ?? (result.count === 0 ? "no_matches" : "ok");
-	if (result.count !== undefined) log.count = result.count;
+	if (result.count !== undefined) {
+		log.count = result.count;
+	}
 	return [200, rpcResult(rpcId, toolContent(result.text, false))];
 }
 
@@ -227,10 +229,14 @@ async function handleAdminLeads(req: Request, env: Env): Promise<Response> {
 
 function authFailureReason(req: Request, env: Env): string | null {
 	const expected = env.MCP_TOKEN ?? "";
-	if (!expected) return "MCP_TOKEN secret not set";
+	if (!expected) {
+		return "MCP_TOKEN secret not set";
+	}
 
 	const header = req.headers.get("Authorization");
-	if (header === null) return "no authorization header";
+	if (header === null) {
+		return "no authorization header";
+	}
 
 	const spaceIdx = header.indexOf(" ");
 	const scheme = spaceIdx >= 0 ? header.slice(0, spaceIdx) : header;
@@ -246,7 +252,9 @@ function authFailureReason(req: Request, env: Env): string | null {
 }
 
 function timingSafeEqual(a: string, b: string): boolean {
-	if (a.length !== b.length) return false;
+	if (a.length !== b.length) {
+		return false;
+	}
 	let result = 0;
 	for (let i = 0; i < a.length; i++) {
 		result |= a.charCodeAt(i) ^ b.charCodeAt(i);
