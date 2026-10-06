@@ -101,7 +101,6 @@ flowchart TD
     find["Find a Property<br/>(buy or rent)"]
     sell["Sell a Property"]
     book["Book A Viewing"]
-    more["Anything Else?"]
     bye[/"Goodbye<br/>(speak node)"/]
     hang{{"Hangup<br/>(tool node)"}}
 
@@ -113,12 +112,13 @@ flowchart TD
     welcome -- "wants to sell" --> sell
     welcome -- "needs nothing" --> bye
     find -- "wants to view a property" --> book
-    find -- "no viewing for now" --> more
-    book -- "booked, or decided not to" --> more
-    sell -- "lead recorded" --> more
-    more -- "another property" --> find
-    more -- "wants to sell" --> sell
-    more -- "nothing else" --> bye
+    find -- "wants to sell" --> sell
+    find -- "finished" --> bye
+    book -- "another property" --> find
+    book -- "wants to sell" --> sell
+    book -- "finished" --> bye
+    sell -- "wants a property" --> find
+    sell -- "finished" --> bye
     bye -- "default" --> hang
 ```
 
@@ -129,8 +129,10 @@ flowchart TD
   instructions say explicitly when to "call the transition tool".
 - **One node per job.** Find a Property covers buying and renting (it's the same search with a different `purpose`);
   only Book A Viewing books, so the read-back always happens before a booking.
-- **Identify Intent runs once per call.** Anything Else routes straight to the working nodes instead of looping back,
-  so the returning-caller check can't fire twice.
+- **Each working node asks "anything else?" and routes on the answer** (another property, selling, or goodbye), so
+  there is no separate "anything else" step, no dead air after a booking, and Identify Intent runs once per call, so
+  the returning-caller check can't fire twice.
+- **Hang Up is enabled on every prompt node** as a safety net, so a call can always end even if a transition is missed.
 - **Goodbye is a speak node** so the closing line is delivered word for word, and the **Hangup tool node** ends the
   call deterministically.
 
