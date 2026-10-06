@@ -32,9 +32,7 @@ def format_for_voice(matches):
     else:
         intro = f"I found {len(matches)} matching properties. Here are the first {len(shown)}."
 
-    parts = [intro] + [
-        f"Option {i}: {_describe(listing)}" for i, listing in enumerate(shown, start=1)
-    ]
+    parts = [intro] + [f"Option {i}: {_describe(listing)}" for i, listing in enumerate(shown, start=1)]
     return " ".join(parts)
 
 
@@ -49,11 +47,7 @@ def _format_amount(amount):
 def _describe(listing):
     rooms = "studio" if listing["bedrooms"] == 0 else f"{listing['bedrooms']} bedroom"
     amount = _format_amount(listing["price_aed"])
-    price = (
-        f"priced at {amount} dirhams"
-        if listing["purpose"] == "buy"
-        else f"rented at {amount} dirhams per year"
-    )
+    price = f"priced at {amount} dirhams" if listing["purpose"] == "buy" else f"rented at {amount} dirhams per year"
     return (
         f"a {rooms} {listing['type']} in {listing['area']}, {listing['size_sqft']} square feet, {price}. "
         f"It has {', '.join(listing['features'][:3])}."

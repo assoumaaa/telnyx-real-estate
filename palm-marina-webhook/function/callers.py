@@ -9,7 +9,9 @@ CALLERS = [
     {
         "phone": "+447911123456",
         "name": "James",
-        "last_time_note": "Looking for a 2-bedroom in Dubai Marina to buy, up to AED 2.5 million; booked a viewing last time.",
+        "last_time_note": (
+            "Looking for a 2-bedroom in Dubai Marina to buy, up to AED 2.5 million; booked a viewing last time."
+        ),
     },
     {
         "phone": "+919876500000",

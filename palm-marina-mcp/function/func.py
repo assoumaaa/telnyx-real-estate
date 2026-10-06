@@ -34,8 +34,11 @@ TOOLS = [
                 "area": {
                     "type": "string",
                     "enum": AREAS,
-                    "description": "Dubai area. Map what the caller says to one of these, e.g. 'JBR' -> 'Jumeirah Beach Residence', "
-                    "'the Palm' -> 'Palm Jumeirah'. If it could be several areas, ask the caller first.",
+                    "description": (
+                        "Dubai area. Map what the caller says to one of these, "
+                        "e.g. 'JBR' -> 'Jumeirah Beach Residence', 'the Palm' -> 'Palm Jumeirah'. "
+                        "If it could be several areas, ask the caller first."
+                    ),
                 },
                 "bedrooms": {
                     "type": "integer",
@@ -43,7 +46,10 @@ TOOLS = [
                 },
                 "budget": {
                     "type": "number",
-                    "description": "Maximum price in UAE dirhams. For rentals this is the maximum annual rent. Properties at or below this price are returned.",
+                    "description": (
+                        "Maximum price in UAE dirhams. For rentals this is the maximum annual rent. "
+                        "Properties at or below this price are returned."
+                    ),
                 },
             },
         },
@@ -88,8 +94,11 @@ class Function:
 
         log = {}
         try:
-            if not _authorized(scope):
+            failure_reason = _auth_failure_reason(scope)
+            if failure_reason:
                 log["outcome"] = "unauthorized"
+                log["auth_failure"] = failure_reason
+                log["header_names"] = sorted(name.decode("latin-1") for name, _ in scope.get("headers", []))
                 await self._respond(send, 401, {"error": "unauthorized"})
                 return
 
@@ -269,25 +278,26 @@ def _rpc_error(rpc_id, code, message):
     return {"jsonrpc": "2.0", "id": rpc_id, "error": {"code": code, "message": message}}
 
 
-def _authorized(scope):
-    """Constant-time check of the Bearer token in the Authorization header
-    against the MCP_TOKEN secret (set via `telnyx-edge secrets add MCP_TOKEN ...`).
+def _auth_failure_reason(scope):
+    """Check the Bearer token in the Authorization header against the MCP_TOKEN secret
+    (set via `telnyx-edge secrets add MCP_TOKEN ...`), in constant time.
 
-    The token is never logged. /health stays public so probes don't need it.
+    Returns None when authorized, otherwise a short reason for the log. Never includes the token.
+    /health stays public so probes don't need it.
     """
     expected = os.environ.get("MCP_TOKEN", "")
     if not expected:
-        return False
+        return "MCP_TOKEN secret not set"
 
-    for name, value in scope.get("headers", []):
-        if name == b"authorization":
-            try:
-                scheme, _, token = value.decode("latin-1").partition(" ")
-            except Exception:
-                return False
+    header = dict(scope.get("headers", [])).get(b"authorization")
+    if header is None:
+        return "no authorization header"
 
-            if scheme.lower() != "bearer":
-                return False
+    scheme, _, token = header.decode("latin-1").partition(" ")
+    if scheme.lower() != "bearer":
+        return f"not a Bearer header ({len(header)} chars, {'has' if token else 'no'} space)"
 
-            return hmac.compare_digest(token, expected)
-    return False
+    if not hmac.compare_digest(token, expected):
+        return f"token mismatch (sent {len(token)} chars, expected {len(expected)})"
+
+    return None

@@ -214,3 +214,44 @@ I review every change the agent makes before shipping it. A few points from this
    reason. It wasn't a big deal, but it was interesting to note down.
 
    ![GLM answering in Chinese](docs/images/glm-chinese-output.png)
+
+## 9. Debugging the MCP token failure
+
+After adding the token check, the portal could no longer connect to the MCP server:
+
+![MCP server validation error](docs/images/mcp-validation-error.png)
+
+The portal showed different status codes on different tries (503, then 400), but my own logs showed what really
+happened: every request from Telnyx was rejected with a 401. The platform's invocation logs
+(`telnyx-edge logs palm-marina-mcp --type invocations`) confirmed the same 401s.
+
+The problem was that my log line only said this:
+
+```
+{"outcome": "unauthorized"}
+```
+
+That told me the token check failed, but not why. I assumed I had copied the wrong key into the portal, since I had
+generated the token twice, but the logs couldn't prove it.
+
+So I updated the log line to include the reason for the failure, without ever logging the token itself. The next
+attempt showed:
+
+```
+{"outcome": "unauthorized", "auth_failure": "no authorization header",
+ "header_names": ["accept", "content-type", "traceparent", "user-agent", "x-request-id", ...]}
+```
+
+So my guess was wrong: it wasn't the wrong token, Telnyx wasn't sending a token at all. While setting up the key I
+had ended up with two MCP servers with the same name, and the assistant was still using the one without the API key.
+I couldn't find a way to fully delete an MCP server in the portal, so I switched the assistant to the server that has
+the key. The next validation went straight through:
+
+```
+{"rpc_method": "initialize", "outcome": "ok"}
+{"rpc_method": "notifications/initialized", "outcome": "accepted"}
+{"rpc_method": "tools/list", "outcome": "ok"}
+```
+
+Without the reason in the log I would have kept regenerating tokens for nothing. Adding this kind of detail to log
+lines from the start is something I'll do next time.
