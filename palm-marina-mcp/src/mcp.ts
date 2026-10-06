@@ -16,6 +16,10 @@ export async function handleRequest(req: Request, env: Env): Promise<Response> {
 	const path = url.pathname;
 	const method = req.method;
 
+	// Platform probes, answered before anything else, as in the Telnyx actor examples.
+	if (path === "/health/liveness" || path === "/health/readiness") {
+		return new Response("ok");
+	}
 	if (path === "/health" && method === "GET") {
 		return json(200, { status: "ok", tools: TOOL_NAMES.length });
 	}

@@ -6,12 +6,11 @@ compatibility_date = "2026-05-01"
 binding = "CALENDAR"
 type = "ViewingCalendar"
 
-# CRM export: the brokerage's listings live in this bucket as listings.json.
-# Filled in by the operator before `telnyx-edge ship` — placeholders kept so a
-# fresh checkout still type-checks and runs tests against the fake bucket.
+# CRM export: the brokerage's listings live in this bucket as listings.json
+# (uploaded from data/listings.json). Tests use a fake bucket, not this one.
 [storage.cloudstorage.FILES]
-bucket_name = "<bucket-name>"
-region = "<region>"
+bucket_name = "palm-marina-listings"
+region = "eu-central-1"
 
 # KV cache in front of the bucket. Caches listings.json for one hour, and
 # stores seller leads under "lead/<id>".
