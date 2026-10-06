@@ -96,36 +96,43 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    start(["Identify Intent<br/>(start)"])
-    buy["Buying Flow"]
-    inquiry["Property Inquiry<br/>(rent / a specific property)"]
-    sell["Selling Flow"]
+    start(["Identify Intent<br/>(start, replace mode)"])
+    welcome["Welcome Back<br/>(returning callers)"]
+    find["Find a Property<br/>(buy or rent)"]
+    sell["Sell a Property"]
     book["Book A Viewing"]
     more["Anything Else?"]
     bye[/"Goodbye<br/>(speak node)"/]
     hang{{"Hangup<br/>(tool node)"}}
 
-    start -- "wants to buy" --> buy
-    start -- "wants to rent / asks about a property" --> inquiry
+    start == "is_returning_caller == true<br/>(variable comparison)" ==> welcome
+    start -- "wants to buy or rent" --> find
     start -- "wants to sell" --> sell
     start -- "needs nothing" --> bye
-    buy -- "wants to view a property" --> book
-    inquiry -- "wants to view a property" --> book
-    buy -- "no viewing for now" --> more
-    inquiry -- "no viewing for now" --> more
+    welcome -- "continue / find a property" --> find
+    welcome -- "wants to sell" --> sell
+    welcome -- "needs nothing" --> bye
+    find -- "wants to view a property" --> book
+    find -- "no viewing for now" --> more
     book -- "booked, or decided not to" --> more
     sell -- "lead recorded" --> more
-    more -- "another request" --> start
+    more -- "another property" --> find
+    more -- "wants to sell" --> sell
     more -- "nothing else" --> bye
     bye -- "default" --> hang
 ```
 
-- **Prompt nodes** carry their own instructions (append mode), on top of the base rules: one question at a time,
-  never invent properties, never claim something is available without searching.
+- **Returning callers are routed deterministically.** The webhook returns `is_returning_caller`, and a
+  variable-comparison edge (thick arrow) sends them to **Welcome Back**, which greets them by name and offers to
+  continue their last search. It is checked before the model's turn, so it doesn't depend on the LLM.
+- **Every other edge is an LLM condition.** On calls the model moves on by calling a transition tool, so each node's
+  instructions say explicitly when to "call the transition tool".
+- **One node per job.** Find a Property covers buying and renting (it's the same search with a different `purpose`);
+  only Book A Viewing books, so the read-back always happens before a booking.
+- **Identify Intent runs once per call.** Anything Else routes straight to the working nodes instead of looping back,
+  so the returning-caller check can't fire twice.
 - **Goodbye is a speak node** so the closing line is delivered word for word, and the **Hangup tool node** ends the
   call deterministically.
-- **Booking is confirmed before it happens:** the assistant reads the property, agent, day and time back, and only
-  calls `book_viewing` after the caller says yes.
 
 ## MCP tools
 
