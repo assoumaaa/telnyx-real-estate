@@ -115,8 +115,15 @@ function seededBucket(): FakeBucket {
 	return new FakeBucket({ "listings.json": SEED_LISTINGS_JSON });
 }
 
-function makeFakeEnv(opts?: { storage?: InMemoryStorage; kv?: FakeKv; bucket?: FakeBucket }): Env {
-	const calendar = makeCalendar(opts?.storage);
+function makeFakeEnv(opts?: { kv?: FakeKv; bucket?: FakeBucket }): Env {
+	// One calendar per actor name, like the platform: each agent has their own bookings.
+	const calendars = new Map<string, ViewingCalendar>();
+	const calendarFor = (name: string) => {
+		if (!calendars.has(name)) {
+			calendars.set(name, makeCalendar());
+		}
+		return calendars.get(name)!;
+	};
 	const kv = opts?.kv ?? new FakeKv();
 	const bucket = opts?.bucket ?? seededBucket();
 	return {
@@ -124,10 +131,11 @@ function makeFakeEnv(opts?: { storage?: InMemoryStorage; kv?: FakeKv; bucket?: F
 			idFromName: (name: string) => ({
 				id: name,
 				fetch: async () => new Response("not used in tests", { status: 501 }),
-				getAvailableSlots: (limit?: number) => calendar.getAvailableSlots(limit),
+				getAvailableSlots: (limit?: number) => calendarFor(name).getAvailableSlots(limit),
 				bookViewing: (slotId: string, callerName: string, listingRef: string) =>
-					calendar.bookViewing(slotId, callerName, listingRef),
-				cancelViewing: (bookingId: string) => calendar.cancelViewing(bookingId),
+					calendarFor(name).bookViewing(slotId, callerName, listingRef),
+				cancelViewing: (bookingId: string) => calendarFor(name).cancelViewing(bookingId),
+				listBookings: () => calendarFor(name).listBookings(),
 			}),
 		} as unknown as Env["CALENDAR"],
 		CACHE: kv as unknown as KvNamespace,
@@ -552,6 +560,22 @@ describe("admin routes", () => {
 		expect(clear.status).toBe(401);
 		const leads = await call("/admin/leads", "GET", undefined, null, env);
 		expect(leads.status).toBe(401);
+		const viewings = await call("/admin/viewings", "GET", undefined, null, env);
+		expect(viewings.status).toBe(401);
+	});
+
+	it("GET /admin/viewings lists each agent's bookings", async () => {
+		const env = makeFakeEnv();
+		const [, slotsText] = await callTool("get_available_slots", { listing_ref: "PMR-101" }, env);
+		const slotId = /\(id: ([^)]+)\)/.exec(slotsText)![1];
+		await callTool("book_viewing", { listing_ref: "PMR-101", slot_id: slotId, caller_name: "James" }, env);
+
+		const { status, body } = await call("/admin/viewings", "GET", undefined, TEST_TOKEN, env);
+		expect(status).toBe(200);
+		const viewings = (body as { viewings: Record<string, Array<{ slotId: string; listingRef: string }>> }).viewings;
+		expect(viewings["Layla Al Mansoori"]).toHaveLength(1);
+		expect(viewings["Layla Al Mansoori"][0]).toMatchObject({ slotId, listingRef: "PMR-101" });
+		expect(viewings["Omar Khoury"]).toHaveLength(0);
 	});
 
 	it("GET /admin/leads lists seller lead keys", async () => {

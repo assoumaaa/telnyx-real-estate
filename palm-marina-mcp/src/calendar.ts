@@ -105,6 +105,10 @@ export class ViewingCalendar extends StatefulActor {
 		return { status: "cancelled", bookingId };
 	}
 
+	async listBookings(): Promise<Booking[]> {
+		return Object.values(await this.bookings());
+	}
+
 	private async bookings(): Promise<BookingMap> {
 		return (await this.ctx.storage.get<BookingMap>(STORAGE_KEY)) ?? {};
 	}
