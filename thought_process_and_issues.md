@@ -285,3 +285,39 @@ with Omar never has to wait behind a booking with Layla.
 
 Next plan would be maybe sending brochures to clients, like PDFs through WhatsApp or email. I still need to look
 into that.
+
+## 11. The workflow never left the first node
+
+The bookings were working, but I noticed every call stayed in "Identify Intent" from start to finish. Because the
+other nodes never ran, their rules didn't either. The assistant booked without reading the details back, read the
+booking id out loud, got the date wrong for "in two days", and never reached the Goodbye node or hung up.
+
+First I turned on "Override assistant tools" for Identify Intent and only allowed Hang Up. It didn't help, the logs
+still showed `search_listings` being called while the transcript said Identify Intent. So this setting doesn't apply
+to MCP tools, they are attached to the whole assistant.
+
+Then I wanted to make sure my setup wasn't wrong, so I read the saved assistant through the API. All the edges were
+saved correctly, so the config was fine.
+
+Reading the docs more closely explained it. On a call, moving to another node is also a tool call
+(`transition__...`), and it only happens if the model chooses it. The model always picked the tool that answers the
+caller instead.
+
+I also tried a different model only on that node. GLM-5.3 is a reasoning model, and on the call it started speaking
+its thinking out loud to the caller, so I reverted it straight away. Not every model works for voice.
+
+What actually fixed it was the wording. Once each node said to "call the transition tool" when it's done, the call
+moved from Identify Intent to Buying Flow for the first time.
+
+After that I used the conversation API to see the real path of each call, since every message has a
+`flow_node_id`. This showed the next problems: the booking still happened inside the search node, and the call got
+stuck at the end because the booking node had no way to say goodbye and no hangup tool.
+
+So I simplified the workflow:
+
+- Buying and Property Inquiry were almost the same, so I merged them into one "Find a Property" node.
+- I removed the "Anything Else" node. Each node now asks "anything else?" and goes straight to the next step or to
+  Goodbye.
+- Returning callers go to a "Welcome Back" node using a variable comparison on `is_returning_caller`, so the webhook
+  data decides the route, not the LLM.
+- Hang Up is allowed on every node, just in case a transition is missed.
