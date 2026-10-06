@@ -1,4 +1,3 @@
-import type { Listing } from "./listings";
 import { StatefulActor } from "@telnyx/edge-runtime";
 
 export interface Slot {
@@ -100,6 +99,7 @@ export class ViewingCalendar extends StatefulActor {
 		if (!slotId) {
 			return { status: "not_found" };
 		}
+
 		delete bookings[slotId];
 		await this.ctx.storage.put(STORAGE_KEY, bookings);
 		return { status: "cancelled", bookingId };
@@ -112,8 +112,4 @@ export class ViewingCalendar extends StatefulActor {
 
 function freeSlots(bookings: BookingMap): Slot[] {
 	return generateSlots(new Date()).filter((s) => !bookings[s.id]);
-}
-
-export function agents(listings: Listing[]): string[] {
-	return [...new Set(listings.map((l) => l.agent))];
 }

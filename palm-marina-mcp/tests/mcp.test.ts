@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { handleRequest } from "../src/mcp";
+import { handleRequest } from "../src/index";
 import type { Env } from "../src/env";
 import type { CloudStorageBucket, KvNamespace } from "@telnyx/edge-runtime";
 import { ViewingCalendar } from "../src/calendar";
-import { formatAmount } from "../src/utils";
-import { actorNameFor } from "../src/tools";
+import { formatAmount } from "../src/listings";
+import { actorNameFor } from "../src/tools/viewings";
 import seedListings from "../data/listings.json";
 
 const TEST_TOKEN = "test-secret-token";
