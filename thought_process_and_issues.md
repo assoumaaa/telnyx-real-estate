@@ -90,7 +90,7 @@ The fix was small: make the three sibling imports package-relative
 (`from .utils import ...`, `from .listings import ...`) and set
 `function/__init__.py` to `from .func import new`. The bug was caught by testing
 the import both ways — as a top-level module and as a package (`from function import
-new`) — *before* deploying. That test now lives in `tests/conftest.py`'s `caller` fixture,
+new`) — _before_ deploying. That test now lives in `tests/conftest.py`'s `caller` fixture,
 which imports via `from function import new`, so the suite fails fast under the wrong
 import style.
 
@@ -154,3 +154,63 @@ first step.
 The fix was to rewrite the server as a proper MCP server on `POST /mcp`: handle `initialize`, notifications,
 `tools/list` and `tools/call`, and return standard JSON-RPC errors. The tool now also returns a short spoken
 summary instead of raw JSON.
+
+## 7. MCP security
+
+After testing, the MCP server was working well: it fetched the right listings and was very fast. I also adjusted the
+node prompts to improve the conversation flow.
+
+I knew the MCP server could be called by anyone who found its URL, so I added security once testing was done. After
+reading the Telnyx Edge docs, the solution was straightforward and there was no need to over-engineer it:
+
+1. Generate a random token locally.
+2. Store it as an Edge secret (`telnyx-edge secrets add MCP_TOKEN ...`). The function reads it from the environment
+   with `os.environ["MCP_TOKEN"]`, so it never appears in the code.
+3. Store the same token in the Telnyx portal as the MCP server's API key. Telnyx sends it with every request to the
+   MCP server.
+4. The server compares the two and rejects any request without the right token.
+
+The commands I ran:
+
+```bash
+# Generate a random token straight into the clipboard, without printing it
+python3 -c "import secrets; print(secrets.token_urlsafe(32), end='')" | pbcopy
+
+# Store it as an Edge secret, injected into the function as the MCP_TOKEN environment variable
+telnyx-edge secrets add MCP_TOKEN "$(pbpaste)"
+
+# Clear the clipboard once the token is also saved in the Telnyx portal
+echo -n | pbcopy
+```
+
+In the portal, I saved the same token as an integration secret and selected it in the MCP server's API Key field.
+
+This blocks any unknown source from calling the MCP server.
+
+I didn't see a need for full OAuth with a sign-in flow. That is useful when different users each connect their own
+accounts. In our case it is just one server talking to another.
+
+## 8. Reviewing the agent's changes
+
+I review every change the agent makes before shipping it. A few points from this round:
+
+1. **Matching area names.** I was worried about how the search matches area names. I didn't want hardcoded values,
+   because a caller might say "JBR" and mean Jumeirah Beach Residence. The model first suggested a map of synonyms,
+   but that would be hard to maintain and keep track of. Instead, we build the list of areas from the data we have
+   and let the model decide which area the caller means. It should be smart enough to do this, and I will confirm it
+   by testing after shipping.
+
+2. **Webhook cleanup.** The Stage 3 webhook had duplicated code (the same log line set three times, and an unneeded
+   helper). I asked for it to be simplified, and checked that each log line only has the fields we need. The logs
+   are now easy to read and debug. For example, a real call in the MCP server's logs
+   (`telnyx-edge logs palm-marina-mcp`):
+
+   ```
+   [2026-10-06T09:21:16.876Z] {"rpc_method": "tools/call", "tool": "search_listings",
+     "arguments": {"area": "Dubai Marina", "bedrooms": 2}, "outcome": "ok", "count": 1}
+   ```
+
+3. **GLM 5.2 switched to Chinese** halfway through one of its answers, in the middle of a code review, for no clear
+   reason. It wasn't a big deal, but it was interesting to note down.
+
+   ![GLM answering in Chinese](docs/images/glm-chinese-output.png)
