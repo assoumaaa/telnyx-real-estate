@@ -28,6 +28,11 @@ export async function handleMcp(
 	const params = typeof obj.params === "object" && obj.params !== null ? (obj.params as Record<string, unknown>) : {};
 	log.rpc_method = rpcMethod;
 
+	const meta = params._meta as { telnyx_conversation_id?: string } | undefined;
+	if (meta?.telnyx_conversation_id) {
+		log.conversation_id = meta.telnyx_conversation_id;
+	}
+
 	// Notifications carry no id and get no reply.
 	if (rpcId === undefined) {
 		log.outcome = "accepted";

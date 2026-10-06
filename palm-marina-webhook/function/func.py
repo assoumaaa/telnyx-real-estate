@@ -52,7 +52,12 @@ class Function:
             return
 
         # Fail-safe defaults; outcome "exception" is overwritten on the happy path.
-        log = {"caller_masked": "", "channel": "unknown", "is_returning": False, "outcome": "exception"}
+        log = {
+            "caller_masked": "",
+            "channel": "unknown",
+            "is_returning": False,
+            "outcome": "exception",
+        }
         try:
             body = await self._read_body(receive)
             status, payload = self._handle_webhook(body, log)
@@ -62,7 +67,10 @@ class Function:
             log["error"] = str(exc)
             await self._respond(send, 200, _safe_response())
         finally:
-            logger.info(json.dumps(log))
+            if log["outcome"] in ("exception", "bad_body"):
+                logger.error(json.dumps(log))
+            else:
+                logger.info(json.dumps(log))
 
     def start(self, cfg):
         """start is an optional method which is called when a new Function
@@ -94,6 +102,9 @@ class Function:
         caller_number = str(payload.get("telnyx_end_user_target") or "")
         log["caller_masked"] = mask_number(caller_number)
         log["channel"] = payload.get("telnyx_conversation_channel") or "unknown"
+        # The same id arrives with every MCP tool call, so it ties this call's logs together across both functions.
+        if payload.get("telnyx_conversation_id"):
+            log["conversation_id"] = payload["telnyx_conversation_id"]
 
         response = _safe_response()
         dv = response["dynamic_variables"]

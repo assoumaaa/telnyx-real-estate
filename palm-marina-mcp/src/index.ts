@@ -45,7 +45,12 @@ export async function handleRequest(req: Request, env: Env): Promise<Response> {
 		log.error = String(e);
 		return json(500, { error: "internal server error" });
 	} finally {
-		console.log(JSON.stringify(log));
+		const line = JSON.stringify(log);
+		if (log.error || log.auth_failure) {
+			console.error(line);
+		} else {
+			console.log(line);
+		}
 	}
 }
 

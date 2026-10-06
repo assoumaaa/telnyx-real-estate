@@ -187,12 +187,15 @@ async function callTool(name: string, args: Record<string, unknown>, env?: Env):
 	return [result.isError as boolean, (result.content as Array<{ text: string }>)[0].text];
 }
 
+/** Our JSON log lines, from stdout and stderr, each tagged with the stream it went to. */
 async function captureLogs(fn: () => Promise<unknown>): Promise<Record<string, unknown>[]> {
-	const logs: string[] = [];
-	const spy = vi.spyOn(console, "log").mockImplementation((s: string) => logs.push(s));
+	const logs: Array<[string, string]> = [];
+	const out = vi.spyOn(console, "log").mockImplementation((s: string) => logs.push(["stdout", s]));
+	const err = vi.spyOn(console, "error").mockImplementation((s: string) => logs.push(["stderr", s]));
 	await fn();
-	spy.mockRestore();
-	return logs.filter((l) => l.startsWith("{")).map((l) => JSON.parse(l));
+	out.mockRestore();
+	err.mockRestore();
+	return logs.filter(([, l]) => l.startsWith("{")).map(([stream, l]) => ({ ...JSON.parse(l), _stream: stream }));
 }
 
 describe("auth", () => {
@@ -609,5 +612,25 @@ describe("missing secret", () => {
 		vi.stubEnv("MCP_TOKEN", "");
 		const { status } = await call("/mcp", "POST", { jsonrpc: "2.0", id: 1, method: "ping" });
 		expect(status).toBe(401);
+	});
+});
+
+describe("tracing and log levels", () => {
+	it("logs the call's conversation id sent in _meta", async () => {
+		const logLines = await captureLogs(() =>
+			rpc("tools/call", {
+				name: "search_listings",
+				arguments: { purpose: "buy" },
+				_meta: { telnyx_conversation_id: "conv-123" },
+			})
+		);
+		expect(logLines[0].conversation_id).toBe("conv-123");
+		expect(logLines[0]._stream).toBe("stdout");
+	});
+
+	it("writes failures to stderr", async () => {
+		const logLines = await captureLogs(() => call("/mcp", "POST", { jsonrpc: "2.0", id: 1, method: "ping" }, null));
+		expect(logLines[0].outcome).toBe("unauthorized");
+		expect(logLines[0]._stream).toBe("stderr");
 	});
 });

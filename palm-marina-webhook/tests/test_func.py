@@ -96,3 +96,20 @@ def test_logs_mask_the_caller_number(caplog):
     assert log["is_returning"] is True
     assert log["outcome"] == "returning_caller"
     assert "+447911123456" not in lines[0]
+
+
+def test_conversation_id_is_logged(caplog):
+    caplog.set_level(logging.INFO, logger="palm-marina-webhook")
+    event = init_event("+447911123456")
+    event["data"]["payload"]["telnyx_conversation_id"] = "conv-123"
+    call("/", "POST", event)
+    line = json.loads(caplog.records[-1].getMessage())
+    assert line["conversation_id"] == "conv-123"
+    assert caplog.records[-1].levelname == "INFO"
+
+
+def test_bad_body_is_logged_as_error(caplog):
+    caplog.set_level(logging.INFO, logger="palm-marina-webhook")
+    call("/", "POST", b"not json")
+    assert json.loads(caplog.records[-1].getMessage())["outcome"] == "bad_body"
+    assert caplog.records[-1].levelname == "ERROR"
