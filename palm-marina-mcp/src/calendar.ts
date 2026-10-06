@@ -26,12 +26,6 @@ export type BookResult =
 
 export type CancelResult = { status: "cancelled"; bookingId: string } | { status: "not_found" };
 
-export interface ActorStorage {
-	get<T>(key: string): Promise<T | undefined>;
-	put<T>(key: string, value: T): Promise<void>;
-	delete(key: string): Promise<boolean>;
-}
-
 const DUBAI_OFFSET = 4;
 const SLOT_HOURS = [10, 12, 14, 16] as const;
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -82,91 +76,53 @@ export function generateSlots(now: Date, daysAhead = 7): Slot[] {
 }
 
 const STORAGE_KEY = "bookings";
+const NEXT_SLOTS = 4;
 
 type BookingMap = Record<string, Booking>;
-
-async function getBookings(storage: ActorStorage): Promise<BookingMap> {
-	return (await storage.get<BookingMap>(STORAGE_KEY)) ?? {};
-}
-
-async function putBookings(storage: ActorStorage, bookings: BookingMap): Promise<void> {
-	await storage.put(STORAGE_KEY, bookings);
-}
 
 function makeBookingId(): string {
 	return `BK-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 }
 
-export async function doGetAvailableSlots(
-	storage: ActorStorage,
-	limit = 4,
-	now: Date = new Date()
-): Promise<AvailableSlotsResult> {
-	const bookings = await getBookings(storage);
-	const all = generateSlots(now);
-	const free = all.filter((s) => !bookings[s.id]);
-	return { slots: free.slice(0, limit) };
-}
-
-export async function doBookViewing(
-	storage: ActorStorage,
-	slotId: string,
-	callerName: string,
-	listingRef: string,
-	now: Date = new Date()
-): Promise<BookResult> {
-	const all = generateSlots(now);
-	const valid = all.find((s) => s.id === slotId);
-	if (!valid) {
-		const bookings = await getBookings(storage);
-		const next = all.filter((s) => !bookings[s.id]).slice(0, 4);
-		return { status: "invalid_slot", nextSlots: next };
-	}
-
-	const bookings = await getBookings(storage);
-	if (bookings[slotId]) {
-		const next = all.filter((s) => !bookings[s.id] && s.utcMs > now.getTime()).slice(0, 4);
-		return { status: "slot_taken", slotId, nextSlots: next };
-	}
-
-	const booking: Booking = {
-		bookingId: makeBookingId(),
-		slotId,
-		callerName,
-		listingRef,
-		bookedAt: now.toISOString(),
-	};
-	bookings[slotId] = booking;
-	await putBookings(storage, bookings);
-	return {
-		status: "booked",
-		bookingId: booking.bookingId,
-		slotId,
-		slotVoice: valid.voice,
-	};
-}
-
-export async function doCancelViewing(storage: ActorStorage, bookingId: string): Promise<CancelResult> {
-	const bookings = await getBookings(storage);
-	const slotId = Object.keys(bookings).find((id) => bookings[id].bookingId === bookingId);
-	if (!slotId) return { status: "not_found" };
-	delete bookings[slotId];
-	await putBookings(storage, bookings);
-	return { status: "cancelled", bookingId };
-}
-
 export class ViewingCalendar extends StatefulActor {
-	async getAvailableSlots(limit = 4): Promise<AvailableSlotsResult> {
-		return doGetAvailableSlots(this.ctx.storage, limit);
+	async getAvailableSlots(limit = NEXT_SLOTS): Promise<AvailableSlotsResult> {
+		const bookings = await this.bookings();
+		return { slots: freeSlots(bookings).slice(0, limit) };
 	}
 
 	async bookViewing(slotId: string, callerName: string, listingRef: string): Promise<BookResult> {
-		return doBookViewing(this.ctx.storage, slotId, callerName, listingRef);
+		const bookings = await this.bookings();
+		const slot = generateSlots(new Date()).find((s) => s.id === slotId);
+		if (!slot) {
+			return { status: "invalid_slot", nextSlots: freeSlots(bookings).slice(0, NEXT_SLOTS) };
+		}
+		// Safe without locks: the platform runs one call at a time per actor instance (one per agent).
+		if (bookings[slotId]) {
+			return { status: "slot_taken", slotId, nextSlots: freeSlots(bookings).slice(0, NEXT_SLOTS) };
+		}
+
+		const bookingId = makeBookingId();
+		bookings[slotId] = { bookingId, slotId, callerName, listingRef, bookedAt: new Date().toISOString() };
+		await this.ctx.storage.put(STORAGE_KEY, bookings);
+		return { status: "booked", bookingId, slotId, slotVoice: slot.voice };
 	}
 
 	async cancelViewing(bookingId: string): Promise<CancelResult> {
-		return doCancelViewing(this.ctx.storage, bookingId);
+		const bookings = await this.bookings();
+		const slotId = Object.keys(bookings).find((id) => bookings[id].bookingId === bookingId);
+		if (!slotId) return { status: "not_found" };
+		delete bookings[slotId];
+		await this.ctx.storage.put(STORAGE_KEY, bookings);
+		return { status: "cancelled", bookingId };
 	}
+
+	private async bookings(): Promise<BookingMap> {
+		return (await this.ctx.storage.get<BookingMap>(STORAGE_KEY)) ?? {};
+	}
+}
+
+function freeSlots(bookings: BookingMap): Slot[] {
+	return generateSlots(new Date()).filter((s) => !bookings[s.id]);
 }
 
 export function agents(listings: Listing[]): string[] {

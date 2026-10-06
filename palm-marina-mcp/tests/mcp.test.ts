@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { handleRequest } from "../src/mcp";
 import type { Env } from "../src/env";
 import type { CloudStorageBucket, KvNamespace } from "@telnyx/edge-runtime";
-import { doGetAvailableSlots, doBookViewing, doCancelViewing, type ActorStorage } from "../src/calendar";
+import { ViewingCalendar } from "../src/calendar";
 import { formatAmount } from "../src/utils";
 import { actorNameFor } from "../src/tools";
 import seedListings from "../data/listings.json";
@@ -10,7 +10,7 @@ import seedListings from "../data/listings.json";
 const TEST_TOKEN = "test-secret-token";
 const SEED_LISTINGS_JSON = JSON.stringify(seedListings);
 
-class InMemoryStorage implements ActorStorage {
+class InMemoryStorage {
 	private map = new Map<string, unknown>();
 
 	async get<T>(key: string): Promise<T | undefined> {
@@ -26,6 +26,11 @@ class InMemoryStorage implements ActorStorage {
 
 function makeStorage(): InMemoryStorage {
 	return new InMemoryStorage();
+}
+
+/** The real actor class, with an in-memory storage in place of the platform's. */
+function makeCalendar(storage: InMemoryStorage = makeStorage()): ViewingCalendar {
+	return new ViewingCalendar({ storage } as never, {} as never);
 }
 
 class FakeKv {
@@ -94,7 +99,7 @@ function seededBucket(): FakeBucket {
 }
 
 function makeFakeEnv(opts?: { storage?: InMemoryStorage; kv?: FakeKv; bucket?: FakeBucket }): Env {
-	const s = opts?.storage ?? makeStorage();
+	const calendar = makeCalendar(opts?.storage);
 	const kv = opts?.kv ?? new FakeKv();
 	const bucket = opts?.bucket ?? seededBucket();
 	return {
@@ -103,15 +108,10 @@ function makeFakeEnv(opts?: { storage?: InMemoryStorage; kv?: FakeKv; bucket?: F
 			idFromName: (name: string) => ({
 				id: name,
 				fetch: async () => new Response("not used in tests", { status: 501 }),
-				async getAvailableSlots(limit = 4) {
-					return doGetAvailableSlots(s, limit);
-				},
-				async bookViewing(slotId: string, callerName: string, listingRef: string) {
-					return doBookViewing(s, slotId, callerName, listingRef);
-				},
-				async cancelViewing(bookingId: string) {
-					return doCancelViewing(s, bookingId);
-				},
+				getAvailableSlots: (limit?: number) => calendar.getAvailableSlots(limit),
+				bookViewing: (slotId: string, callerName: string, listingRef: string) =>
+					calendar.bookViewing(slotId, callerName, listingRef),
+				cancelViewing: (bookingId: string) => calendar.cancelViewing(bookingId),
 			}),
 		} as unknown as Env["CALENDAR"],
 		CACHE: kv as unknown as KvNamespace,
@@ -358,13 +358,13 @@ describe("listings cache (KV in front of the bucket)", () => {
 });
 
 describe("calendar actor (in-memory storage)", () => {
-	let storage: InMemoryStorage;
+	let calendar: ViewingCalendar;
 	beforeEach(() => {
-		storage = makeStorage();
+		calendar = makeCalendar();
 	});
 
 	it("get_available_slots returns future slots", async () => {
-		const { slots } = await doGetAvailableSlots(storage, 4);
+		const { slots } = await calendar.getAvailableSlots(4);
 		expect(slots.length).toBeGreaterThan(0);
 		expect(slots.length).toBeLessThanOrEqual(4);
 		expect(slots[0].id).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:00\+04:00$/);
@@ -372,9 +372,9 @@ describe("calendar actor (in-memory storage)", () => {
 	});
 
 	it("book_viewing succeeds and returns a booking id", async () => {
-		const { slots } = await doGetAvailableSlots(storage, 1);
+		const { slots } = await calendar.getAvailableSlots(1);
 		const slotId = slots[0].id;
-		const result = await doBookViewing(storage, slotId, "James", "PMR-101");
+		const result = await calendar.bookViewing(slotId, "James", "PMR-101");
 		expect(result.status).toBe("booked");
 		if (result.status === "booked") {
 			expect(result.bookingId).toMatch(/^BK-/);
@@ -384,32 +384,32 @@ describe("calendar actor (in-memory storage)", () => {
 	});
 
 	it("double-booking the same slot is rejected", async () => {
-		const { slots } = await doGetAvailableSlots(storage, 2);
+		const { slots } = await calendar.getAvailableSlots(2);
 		const slotId = slots[0].id;
-		const first = await doBookViewing(storage, slotId, "James", "PMR-101");
+		const first = await calendar.bookViewing(slotId, "James", "PMR-101");
 		expect(first.status).toBe("booked");
-		const second = await doBookViewing(storage, slotId, "Priya", "PMR-102");
+		const second = await calendar.bookViewing(slotId, "Priya", "PMR-102");
 		expect(second.status).toBe("slot_taken");
 	});
 
 	it("cancel_viewing removes the booking", async () => {
-		const { slots } = await doGetAvailableSlots(storage, 1);
+		const { slots } = await calendar.getAvailableSlots(1);
 		const slotId = slots[0].id;
-		const booked = await doBookViewing(storage, slotId, "James", "PMR-101");
+		const booked = await calendar.bookViewing(slotId, "James", "PMR-101");
 		if (booked.status !== "booked") throw new Error("expected booked");
-		const cancel = await doCancelViewing(storage, booked.bookingId);
+		const cancel = await calendar.cancelViewing(booked.bookingId);
 		expect(cancel.status).toBe("cancelled");
-		const rebook = await doBookViewing(storage, slotId, "Priya", "PMR-102");
+		const rebook = await calendar.bookViewing(slotId, "Priya", "PMR-102");
 		expect(rebook.status).toBe("booked");
 	});
 
 	it("cancel unknown booking id returns not_found", async () => {
-		const result = await doCancelViewing(storage, "BK-nonexistent");
+		const result = await calendar.cancelViewing("BK-nonexistent");
 		expect(result.status).toBe("not_found");
 	});
 
 	it("invalid slot id is rejected", async () => {
-		const result = await doBookViewing(storage, "not-a-real-slot", "James", "PMR-101");
+		const result = await calendar.bookViewing("not-a-real-slot", "James", "PMR-101");
 		expect(result.status).toBe("invalid_slot");
 	});
 });
