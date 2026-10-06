@@ -1,39 +1,38 @@
 # palm-marina-mcp
 
-A Telnyx Edge **StatefulActor** project, scaffolded with `telnyx-edge new-func --actor`.
+The MCP server for the Palm & Marina Realty assistant: a TypeScript Telnyx Edge Function with a Stateful Actor,
+KV and a Cloud Storage bucket bound on `env`. See the [root README](../README.md) for the full architecture.
 
-> **Preview.** StatefulActor support is in preview — this project is ready to
-> build against and ship with `telnyx-edge`; the surface may still change
-> before general availability.
+## Routes
 
-## Layout
+| Route | Auth | Purpose |
+| --- | --- | --- |
+| `POST /mcp` | Bearer `MCP_TOKEN` | MCP JSON-RPC: `initialize`, notifications, `ping`, `tools/list`, `tools/call` |
+| `GET /health`, `/health/liveness`, `/health/readiness` | none | health checks |
+| `GET /admin/viewings` | Bearer `MCP_TOKEN` | bookings per agent, read from each calendar actor |
+| `GET /admin/leads` | Bearer `MCP_TOKEN` | seller lead keys in KV |
+| `POST /admin/cache/clear` | Bearer `MCP_TOKEN` | drop the listings cache after uploading a new `listings.json` |
 
-| File | Purpose |
+## Files
+
+| File | Job |
 | --- | --- |
-| `telnyx.toml` | Project manifest. Declares the `COUNTER` actor binding (mapped to the `Counter` class) and the function identity. |
-| `src/index.ts` | The function entry point (`main`). Handles HTTP requests, calls the actor through `env.COUNTER`, and re-exports the `Counter` class so it ships with the function. |
-| `src/counter.ts` | The `Counter` actor class. |
-| `package.json` / `tsconfig.json` | TypeScript project configuration. |
+| `telnyx.toml` | Manifest: the `CALENDAR` actor, `CACHE` KV namespace, `FILES` bucket and the `MCP_TOKEN` secret |
+| `src/index.ts` | Routing, the token check and one JSON log line per request |
+| `src/auth.ts` | Bearer token check; logs why it failed, never the token |
+| `src/mcp.ts` | The MCP protocol |
+| `src/admin.ts` | Admin routes |
+| `src/tools/` | One file per tool group: `search.ts`, `viewings.ts`, `leads.ts`; `index.ts` lists them |
+| `src/listings.ts` | Listing type, KV cache over the bucket, filtering and the spoken summary |
+| `src/calendar.ts` | `ViewingCalendar` actor: slots and bookings for one agent |
+| `data/listings.json` | Master copy of the listings, uploaded to the bucket as `listings.json` |
 
-## Deploy
-
-Install dependencies and ship:
+## Develop and deploy
 
 ```sh
 npm install
+npm test            # vitest; fakes for KV, the bucket and the actor
+npm run typecheck
+npm run format
 telnyx-edge ship
 ```
-
-## Using the actor
-
-`src/index.ts` resolves an actor instance by name and calls a method on it:
-
-```ts
-const counter = env.COUNTER.idFromName("demo");
-const value = await counter.increment(1);
-```
-
-`COUNTER` is the binding declared under `[[actors]]` in `telnyx.toml`; it maps to
-the `Counter` class in `src/counter.ts`. Add methods to that class and call them
-through the binding. Generate the `env.COUNTER` types (`Env`) with
-`telnyx-edge types`.
