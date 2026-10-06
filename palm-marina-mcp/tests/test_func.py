@@ -7,14 +7,21 @@ import asyncio
 import json
 import logging
 
+import pytest
+
 # Import the way the Edge runtime does. A plain `from utils import ...` inside the
 # package passes local script checks but fails here (see thought_process_and_issues.md).
 from function import new
 
+TEST_TOKEN = "test-secret-token"
 
-def call(path, method="GET", body=None):
+
+def call(path, method="GET", body=None, token=TEST_TOKEN):
     """Drive the ASGI handler directly and return (status, parsed JSON body or None)."""
     raw = body if isinstance(body, bytes) else json.dumps(body).encode() if body is not None else b""
+    headers = []
+    if token is not None:
+        headers.append([b"authorization", f"Bearer {token}".encode()])
     out = {}
 
     async def receive():
@@ -26,7 +33,7 @@ def call(path, method="GET", body=None):
         else:
             out["body"] = json.loads(message["body"]) if message["body"] else None
 
-    asyncio.run(new().handle({"type": "http", "path": path, "method": method}, receive, send))
+    asyncio.run(new().handle({"type": "http", "path": path, "method": method, "headers": headers}, receive, send))
     return out["status"], out["body"]
 
 
@@ -40,6 +47,37 @@ def rpc(method, params=None, rpc_id=1):
 def call_tool(name, arguments):
     result = rpc("tools/call", {"name": name, "arguments": arguments})["result"]
     return result["isError"], result["content"][0]["text"]
+
+
+@pytest.fixture(autouse=True)
+def _set_mcp_token(monkeypatch):
+    monkeypatch.setenv("MCP_TOKEN", TEST_TOKEN)
+
+
+def test_health_is_public_without_token():
+    status, body = call("/health", "GET", token=None)
+    assert status == 200
+    assert body["status"] == "ok"
+
+
+def test_missing_token_is_401():
+    status, body = call("/mcp", "POST", {"jsonrpc": "2.0", "id": 1, "method": "ping"}, token=None)
+    assert status == 401
+    assert body["error"] == "unauthorized"
+
+
+def test_wrong_token_is_401():
+    status, _ = call("/mcp", "POST", {"jsonrpc": "2.0", "id": 1, "method": "ping"}, token="wrong")
+    assert status == 401
+
+
+def test_unauthorized_is_logged_without_token(caplog):
+    caplog.set_level(logging.INFO, logger="palm-marina-mcp")
+    call("/mcp", "POST", {"jsonrpc": "2.0", "id": 1, "method": "ping"}, token=None)
+    lines = [json.loads(r.message) for r in caplog.records if r.message.startswith("{")]
+    assert len(lines) == 1
+    assert lines[0]["outcome"] == "unauthorized"
+    assert "test-secret-token" not in lines[0]
 
 
 def test_initialize_echoes_protocol_version():
@@ -58,7 +96,7 @@ def test_tools_list():
 
 
 def test_search_returns_spoken_summary():
-    is_error, text = call_tool("search_listings", {"purpose": "buy", "area": "Marina", "bedrooms": 2})
+    is_error, text = call_tool("search_listings", {"purpose": "buy", "area": "Dubai Marina", "bedrooms": 2})
     assert not is_error
     assert text.startswith("I found one matching property")
 
@@ -67,6 +105,17 @@ def test_no_matches_is_not_an_error():
     is_error, text = call_tool("search_listings", {"purpose": "buy", "budget": 100000})
     assert not is_error
     assert "couldn't find" in text
+
+
+def test_area_must_be_a_known_area():
+    is_error, text = call_tool("search_listings", {"area": "JBR"})
+    assert is_error
+    assert "Jumeirah Beach Residence" in text  # the error lists the valid areas so the model can retry
+
+
+def test_area_list_comes_from_listings():
+    tools = rpc("tools/list")["result"]["tools"]
+    assert "Jumeirah Beach Residence" in tools[0]["inputSchema"]["properties"]["area"]["enum"]
 
 
 def test_bad_arguments():

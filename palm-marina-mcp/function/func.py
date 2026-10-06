@@ -4,10 +4,12 @@ Exposes a single tool, search_listings, that lets the AI phone concierge find
 fictional Dubai properties for sale or rent and describe them out loud.
 """
 
+import hmac
 import json
 import logging
+import os
 
-from .utils import filter_listings, format_for_voice
+from .utils import AREAS, filter_listings, format_for_voice
 
 logger = logging.getLogger("palm-marina-mcp")
 logger.setLevel(logging.INFO)
@@ -31,7 +33,9 @@ TOOLS = [
                 },
                 "area": {
                     "type": "string",
-                    "description": "Dubai area name, e.g. 'Dubai Marina', 'Palm Jumeirah', 'Downtown Dubai'. Case-insensitive substring match.",
+                    "enum": AREAS,
+                    "description": "Dubai area. Map what the caller says to one of these, e.g. 'JBR' -> 'Jumeirah Beach Residence', "
+                    "'the Palm' -> 'Palm Jumeirah'. If it could be several areas, ask the caller first.",
                 },
                 "bedrooms": {
                     "type": "integer",
@@ -84,6 +88,11 @@ class Function:
 
         log = {}
         try:
+            if not _authorized(scope):
+                log["outcome"] = "unauthorized"
+                await self._respond(send, 401, {"error": "unauthorized"})
+                return
+
             body = await self._read_body(receive)
             status, payload = self._handle_rpc(body, log)
             await self._respond(send, status, payload)
@@ -164,9 +173,20 @@ class Function:
         log["tool"] = tool_name
         log["arguments"] = {k: v for k, v in tool_args.items() if k in ("purpose", "area", "bedrooms", "budget")}
 
-        result = self._execute_tool(tool_name, tool_args)
+        if tool_name != "search_listings":
+            log["outcome"] = "unknown_tool"
+            log["error"] = f"Unknown tool: {tool_name}"
+            return 200, _rpc_result(
+                rpc_id,
+                {
+                    "content": [{"type": "text", "text": f"Unknown tool: {tool_name}"}],
+                    "isError": True,
+                },
+            )
+
+        result = self._execute_tool(tool_args)
         if "error" in result:
-            log["outcome"] = "unknown_tool" if result["error"].startswith("Unknown tool") else "bad_args"
+            log["outcome"] = "bad_args"
             log["error"] = result["error"]
             return 200, _rpc_result(
                 rpc_id,
@@ -186,17 +206,14 @@ class Function:
             },
         )
 
-    def _execute_tool(self, name, args):
-        if name != "search_listings":
-            return {"error": f"Unknown tool: {name}"}
-
+    def _execute_tool(self, args):
         purpose = args.get("purpose")
         if purpose and purpose not in ("buy", "rent"):
             return {"error": f"purpose must be 'buy' or 'rent', got {purpose!r}"}
 
         area = args.get("area")
-        if area and not isinstance(area, str):
-            return {"error": f"area must be a string, got {type(area).__name__}"}
+        if area and (not isinstance(area, str) or area.lower().strip() not in [a.lower() for a in AREAS]):
+            return {"error": f"Unknown area {area!r}. Valid areas: {', '.join(AREAS)}"}
 
         bedrooms = args.get("bedrooms")
         if bedrooms is not None:
@@ -250,3 +267,27 @@ def _rpc_result(rpc_id, result):
 def _rpc_error(rpc_id, code, message):
     """JSON-RPC 2.0 codes: -32700 parse error, -32600 invalid request, -32601 method not found."""
     return {"jsonrpc": "2.0", "id": rpc_id, "error": {"code": code, "message": message}}
+
+
+def _authorized(scope):
+    """Constant-time check of the Bearer token in the Authorization header
+    against the MCP_TOKEN secret (set via `telnyx-edge secrets add MCP_TOKEN ...`).
+
+    The token is never logged. /health stays public so probes don't need it.
+    """
+    expected = os.environ.get("MCP_TOKEN", "")
+    if not expected:
+        return False
+
+    for name, value in scope.get("headers", []):
+        if name == b"authorization":
+            try:
+                scheme, _, token = value.decode("latin-1").partition(" ")
+            except Exception:
+                return False
+
+            if scheme.lower() != "bearer":
+                return False
+
+            return hmac.compare_digest(token, expected)
+    return False

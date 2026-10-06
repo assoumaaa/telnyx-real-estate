@@ -1,0 +1,2 @@
+# Dev dependencies for running the unit tests.
+pytest>=8.0

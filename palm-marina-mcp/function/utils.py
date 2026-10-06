@@ -2,13 +2,15 @@
 
 from .listings import LISTINGS
 
+AREAS = sorted({listing["area"] for listing in LISTINGS})
+
 
 def filter_listings(purpose=None, area=None, bedrooms=None, budget=None):
     return [
         listing
         for listing in LISTINGS
         if (not purpose or listing["purpose"] == purpose)
-        and (not area or area.lower().strip() in listing["area"].lower())
+        and (not area or listing["area"].lower() == area.lower().strip())
         and (bedrooms is None or listing["bedrooms"] == bedrooms)
         and (budget is None or listing["price_aed"] <= budget)
     ]
@@ -30,7 +32,9 @@ def format_for_voice(matches):
     else:
         intro = f"I found {len(matches)} matching properties. Here are the first {len(shown)}."
 
-    parts = [intro] + [f"Option {i}: {_describe(listing)}" for i, listing in enumerate(shown, start=1)]
+    parts = [intro] + [
+        f"Option {i}: {_describe(listing)}" for i, listing in enumerate(shown, start=1)
+    ]
     return " ".join(parts)
 
 
@@ -45,10 +49,12 @@ def _format_amount(amount):
 def _describe(listing):
     rooms = "studio" if listing["bedrooms"] == 0 else f"{listing['bedrooms']} bedroom"
     amount = _format_amount(listing["price_aed"])
-    price = f"priced at {amount} dirhams" if listing["purpose"] == "buy" else f"rented at {amount} dirhams per year"
-    # "PMR-101" -> "P M R 1 0 1", so the voice reads it letter by letter
-    reference = " ".join(listing["reference"].replace("-", ""))
+    price = (
+        f"priced at {amount} dirhams"
+        if listing["purpose"] == "buy"
+        else f"rented at {amount} dirhams per year"
+    )
     return (
         f"a {rooms} {listing['type']} in {listing['area']}, {listing['size_sqft']} square feet, {price}. "
-        f"Reference {reference}. It has {', '.join(listing['features'][:3])}."
+        f"It has {', '.join(listing['features'][:3])}."
     )
