@@ -1,0 +1,28 @@
+name = "palm-marina-mcp"
+main = "src/index.ts"
+compatibility_date = "2026-05-01"
+
+[[actors]]
+binding = "CALENDAR"
+type = "ViewingCalendar"
+
+# CRM export: the brokerage's listings live in this bucket as listings.json.
+# Filled in by the operator before `telnyx-edge ship` — placeholders kept so a
+# fresh checkout still type-checks and runs tests against the fake bucket.
+[storage.cloudstorage.FILES]
+bucket_name = "<bucket-name>"
+region = "<region>"
+
+# KV cache in front of the bucket. Caches listings.json for one hour, and
+# stores seller leads under "lead/<id>".
+[storage.kv.CACHE]
+id = "118e2838-862e-4d05-a5c6-753d72758e8a"
+
+# Stored with: telnyx-edge secrets add MCP_TOKEN <value>. Reaches the code as env.MCP_TOKEN.
+[[secrets]]
+binding = "MCP_TOKEN"
+name = "MCP_TOKEN"
+
+[edge_compute]
+func_id = "f24fbfd6-116b-48c8-b16d-f7a37c92db76"
+func_name = "palm-marina-mcp"

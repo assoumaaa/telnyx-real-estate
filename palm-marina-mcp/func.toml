@@ -1,7 +1,0 @@
-[edge_compute]
-func_id = "4442d395-b7dc-48ea-b653-7138023e9aa7"
-func_name = "palm-marina-mcp"
-
-# For environment variables and secrets:
-# Use telnyx-edge secrets add <name> <value>
-# Secrets are injected as environment variables into all your functions
