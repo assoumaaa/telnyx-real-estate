@@ -9,8 +9,8 @@ type = "ViewingCalendar"
 # CRM export: the brokerage's listings live in this bucket as listings.json
 # (uploaded from data/listings.json). Tests use a fake bucket, not this one.
 [storage.cloudstorage.FILES]
-bucket_name = "palm-marina-listings"
-region = "us-central-1"
+bucket_name = "palm-marina-properties-listings"
+region = "eu-central-1"
 
 # KV cache in front of the bucket. Caches listings.json for one hour, and
 # stores seller leads under "lead/<id>".
