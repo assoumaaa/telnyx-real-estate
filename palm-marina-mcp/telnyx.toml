@@ -10,7 +10,7 @@ type = "ViewingCalendar"
 # (uploaded from data/listings.json). Tests use a fake bucket, not this one.
 [storage.cloudstorage.FILES]
 bucket_name = "palm-marina-listings"
-region = "eu-central-1"
+region = "us-central-1"
 
 # KV cache in front of the bucket. Caches listings.json for one hour, and
 # stores seller leads under "lead/<id>".
