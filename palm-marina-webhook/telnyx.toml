@@ -1,0 +1,11 @@
+name = "palm-marina-webhook"
+main = "src/index.ts"
+compatibility_date = "2026-05-01"
+
+# The same KV as palm-marina-mcp: the caller/<number> session summaries it saves after each booking, cancel or lead.
+[storage.kv.KV]
+id = "118e2838-862e-4d05-a5c6-753d72758e8a"
+
+[edge_compute]
+func_id = "d362b322-9eb8-4661-8fb4-1f47fb59e618"
+func_name = "palm-marina-webhook"

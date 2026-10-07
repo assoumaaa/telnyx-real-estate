@@ -1,7 +1,0 @@
-[edge_compute]
-func_id = "d6c32598-4f12-4e79-ab54-a5e5d81df1af"
-func_name = "palm-marina-webhook"
-
-# For environment variables and secrets:
-# Use telnyx-edge secrets add <name> <value>
-# Secrets are injected as environment variables into all your functions
