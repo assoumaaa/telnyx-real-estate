@@ -266,8 +266,9 @@ I could have still used Python and called a small TypeScript actor over HTTP, bu
 I did more research into Edge Compute with TypeScript and saw the power of everything being injected at runtime.
 The actor, KV and the storage bucket are just there in `env` (`env.CALENDAR`, `env.CACHE`, `env.FILES`), and Telnyx
 handles the credentials. So I decided to shift to one centralized MCP server in TypeScript. This also sounded more
-interesting to play around with. The old Python version is still in the git history, and the dynamic variables
-webhook stays in Python because it doesn't need any of this.
+interesting to play around with. The old Python version is still in the git history. The dynamic variables webhook
+stayed in Python at first because it didn't need any of this, and later moved to TypeScript too, so it reads KV
+through the `env` binding instead of the REST API.
 
 I also wanted to discover Telnyx Cloud Storage, so I used it to mimic a production database. Our `listings.json`
 lives in a bucket, like an export from the brokerage's CRM. The MCP server fetches it from there and keeps a copy
@@ -277,11 +278,11 @@ Why actors for the bookings: the problem is double booking. If two callers ask f
 the same moment, a normal function could check "is it free?" for both, get yes twice, and book the same slot two
 times. KV wouldn't fix it either, because it has no locks and the last write just wins.
 
-An actor solves this because it is single threaded. Each agent has their own actor (one for Layla, one for Omar,
-one for Sara), and each actor handles one call at a time. So the two bookings for Layla run one after the other:
-the first one books the slot, and the second one sees it's already taken and gets offered the next free times. I
-don't need any locks for this, the platform does it for me. And because every agent has their own actor, a booking
-with Omar never has to wait behind a booking with Layla.
+An actor solves this because it is single threaded. Each agent has their own calendar actor (one for Layla, one for
+Omar, one for Sara) that holds their bookings, and each one handles one call at a time. So the two bookings for Layla
+run one after the other: the first one books the slot, and the second one sees it's already taken and gets offered
+the next free times. I don't need any locks for this, the platform does it for me. And because every agent has their
+own calendar actor, a booking with Omar never has to wait behind a booking with Layla.
 
 Next plan would be maybe sending brochures to clients, like PDFs through WhatsApp or email. I still need to look
 into that.
@@ -321,3 +322,73 @@ So I simplified the workflow:
 - Returning callers go to a "Welcome Back" node using a variable comparison on `is_returning_caller`, so the webhook
   data decides the route, not the LLM.
 - Hang Up is allowed on every node, just in case a transition is missed.
+
+## 12. Cancelling a viewing, and why the calendar is per agent
+
+At first a booking gave back an id like `BK-x7f2`, and you needed it to cancel. Nobody remembers that on a phone
+call, so I changed it: a viewing is booked under the caller's name, and to cancel you only give the name and the day.
+
+Then I noticed the cancel goes through every agent. It asks Layla's calendar actor "do you have Omar on the 8th?", then
+Omar's, then Sara's, until one says yes. This is because the cancel only knows who and when, not which agent, and
+each agent has their own calendar.
+
+So I asked myself, wouldn't it make more sense to just store bookings, with the agent's name on each one? It turns
+out the key decides two things: what you can find quickly, and what is protected from two calls at the same time.
+
+- Keyed by agent (what we have): double booking is impossible, because Sara's calendar handles one call at a time,
+  and her free times are one call away. But cancelling has to check every agent.
+- Keyed by booking or by caller: cancelling is one call. But if Omar and James both book Sara at 4pm at the same
+  moment, they write two different keys, both succeed, and Sara has two people at 4pm. And to show her free times
+  you have to look through every booking.
+
+So whichever key you pick, one direction is fast and the other turns into a search. Keeping a second copy, like a
+per-caller index, fixes the search but then you have two copies to keep in sync.
+
+With 3 agents the cancel is at most 3 small actor calls, so I kept the calendar per agent. It's exactly what actors
+are for, one owner per agent and one call at a time. At a real brokerage with hundreds of agents I would move
+bookings to a database table instead: one row per booking with the agent on it, a unique constraint on agent and
+slot so the database itself refuses a double booking, and an index on the caller's number so cancelling is one
+query. That is my "booking with the agent's name" idea, done with the right tool.
+
+## 13. Testing the calls and debugging
+
+Most of these came from calling the number myself and then reading three things side by side: the transcript in the
+portal (what was said and when), our JSON log lines (`telnyx-edge logs palm-marina-mcp`), and the platform's
+invocation log (`--type invocations`), which gives how long every request took.
+
+**Cancelling stayed in the first node and got the date wrong.** I asked to cancel a viewing for "tomorrow". The
+transcript showed every line in Identify Intent, and the tool call had `"caller_name": "Unknown"` and
+`"date": "2026-10-11"`, when tomorrow was the 8th. Identify Intent runs in replace mode, so it doesn't get the base
+instructions, including the one with today's date. The model was cancelling in a step that didn't know what day it
+was. I made Identify Intent hand cancels over to Cancel A Viewing, and changed the date to use Telnyx's own variables:
+`{{telnyx_current_time_Asia/Dubai}}`, instead of giving it UTC and asking it to add 4 hours. Then I noticed a time zone
+edge case: I'm in Lebanon, one hour behind Dubai, so between 11pm and midnight my "tomorrow" is a different day than
+Dubai's. So before cancelling, the assistant now says the real date back ("That's Thursday 8 October?").
+
+**Saving a seller's lead made the caller wait 45 seconds.** George kept saying "let me check that for you" and the
+portal showed `tool_timeout` three times. Our log said exactly why: `KV put("lead/<my-sip-address>@sip.telnyx.eu") failed:
+HTTP 400 ... Allowed characters: a-z A-Z 0-9 - _ / = .` KV keys can't contain `@`, and not `+` either, so every lead
+saved under a phone number would have failed, not just my test calls (they come from a SIP address). The tests didn't
+catch it because the fake KV accepted any key. The waiting came from a second problem: the crash went back as an HTTP
+500, which Telnyx treats as no answer, so it waited its 15 second tool timeout and tried again. I fixed the key, made
+the fake KV reject bad keys like the real one, and made a crash come back as a normal tool error straight away. I also
+lowered the MCP server's tool timeout to 8 seconds, gave both assistants the transfer tool, and told them to stop
+retrying after a failure and offer a real agent instead.
+
+**Silence while booking.** After I confirmed a booking I heard nothing for about 5 seconds and said "Hello?". The
+timestamps showed where it went: about 3 seconds of Telnyx reconnecting to our server, about 1 second for the tool,
+and about 3 seconds of the model writing its answer. Each request that reads the listings from KV takes about 1
+second, while one that doesn't takes 7 ms, so the KV read is our part. I thought about keeping the listings in memory
+to skip it, but I'd rather keep it simple, KV already is the cache. The filler messages only play while a tool is
+running, and each wait was shorter than the filler's delay, so none of them played. "Let me check that for you" also
+sounded wrong when George was saving details, not checking anything. So both assistants now say "One moment, please."
+the moment a tool starts, and "Still checking." if it takes more than 3 seconds.
+
+**George asked before explaining.** He asked "can I text you the link?" and only explained the listing agreement
+after I said yes, so I asked "what is it exactly?". The question was at the end of Seller Details and the explanation
+was the speak node after it. Now George saves the details, the speak node explains what Form A is, and only then does
+he ask "shall I text you the link?".
+
+**"Buy" heard as "bye".** I said "let's say buy" and speech to text heard "bye", so the assistant said its goodbye line
+in the middle of a search. I added a rule: if the caller says "bye" while still giving details, treat it as "buy", and
+ask if it isn't clear.
