@@ -41,19 +41,19 @@ export function searchListingsDefinition(listings: Listing[]) {
 }
 
 export function searchListings(args: Record<string, unknown>, listings: Listing[]): ToolResult {
-	const purpose = args.purpose as string | undefined;
+	const purpose = typeof args.purpose === "string" ? args.purpose : "";
 	if (purpose && purpose !== "buy" && purpose !== "rent") {
 		return { isError: true, text: `purpose must be 'buy' or 'rent', got ${JSON.stringify(purpose)}` };
 	}
 
 	// The enum asks the model for a valid area; this check makes sure, and lists the valid ones so it can retry.
 	const validAreas = areas(listings);
-	const area = args.area as string | undefined;
-	if (area && (typeof area !== "string" || !validAreas.some((a) => a.toLowerCase() === area.toLowerCase().trim()))) {
+	const area = typeof args.area === "string" ? args.area.trim() : "";
+	if (area && !validAreas.includes(area)) {
 		return { isError: true, text: `Unknown area ${JSON.stringify(area)}. Valid areas: ${validAreas.join(", ")}` };
 	}
 
-	let bedrooms: number | undefined = undefined;
+	let bedrooms: number | undefined;
 	if (args.bedrooms !== undefined && args.bedrooms !== null) {
 		bedrooms = Number(args.bedrooms);
 		if (!Number.isInteger(bedrooms) || bedrooms < 0) {
@@ -64,10 +64,10 @@ export function searchListings(args: Record<string, unknown>, listings: Listing[
 		}
 	}
 
-	let budget: number | undefined = undefined;
+	let budget: number | undefined;
 	if (args.budget !== undefined && args.budget !== null) {
 		budget = Number(args.budget);
-		if (isNaN(budget) || budget <= 0) {
+		if (!Number.isFinite(budget) || budget <= 0) {
 			return {
 				isError: true,
 				text: `budget must be a number greater than 0, got ${JSON.stringify(args.budget)}`,

@@ -3,6 +3,6 @@ import type { ViewingCalendar } from "./calendar";
 
 export interface Env {
 	CALENDAR: ActorNamespace<ViewingCalendar>;
-	CACHE: KvNamespace;
+	KV: KvNamespace;
 	FILES: CloudStorageBucket;
 }

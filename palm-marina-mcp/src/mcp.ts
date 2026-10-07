@@ -1,6 +1,7 @@
+import { allowlistedArgs, buildTools, executeTool, isKnownTool } from "./tools";
+
 import type { Env } from "./env";
-import { getListings, type Listing } from "./listings";
-import { allowlistedArgs, buildTools, executeTool, isKnownTool, needsListings } from "./tools";
+import { getListings } from "./listings";
 
 export async function handleMcp(
 	body: string,
@@ -23,9 +24,10 @@ export async function handleMcp(
 	}
 
 	const obj = msg as Record<string, unknown>;
-	const rpcMethod = obj.method as string | undefined;
 	const rpcId = obj.id;
-	const params = typeof obj.params === "object" && obj.params !== null ? (obj.params as Record<string, unknown>) : {};
+	const rpcMethod = typeof obj.method === "string" ? obj.method : "";
+	const params = (obj.params ?? {}) as Record<string, unknown>;
+
 	log.rpc_method = rpcMethod;
 
 	const meta = params._meta as { telnyx_conversation_id?: string } | undefined;
@@ -44,7 +46,7 @@ export async function handleMcp(
 		return [
 			200,
 			rpcResult(rpcId, {
-				protocolVersion: (params.protocolVersion as string) ?? "2025-06-18",
+				protocolVersion: typeof params.protocolVersion === "string" ? params.protocolVersion : "2025-06-18",
 				capabilities: { tools: {} },
 				serverInfo: { name: "palm-marina-mcp", version: "0.1.0" },
 			}),
@@ -57,15 +59,10 @@ export async function handleMcp(
 	}
 
 	if (rpcMethod === "tools/list") {
-		const loaded = await getListings(env);
-		if (!loaded.ok) {
-			log.outcome = "listings_unavailable";
-			log.error = loaded.error;
-			return [500, rpcError(rpcId, -32603, "listings unavailable")];
-		}
-		log.cache = loaded.cache;
+		const { listings, cache } = await getListings(env);
+		log.cache = cache;
 		log.outcome = "ok";
-		return [200, rpcResult(rpcId, { tools: buildTools(loaded.listings) })];
+		return [200, rpcResult(rpcId, { tools: buildTools(listings) })];
 	}
 
 	if (rpcMethod !== "tools/call") {
@@ -74,7 +71,16 @@ export async function handleMcp(
 		return [200, rpcError(rpcId, -32601, `Method not found: ${rpcMethod}`)];
 	}
 
-	return callTool(rpcId, params, env, log);
+	// A crash answered as HTTP 500 counts as no answer for Telnyx, which waits for its tool timeout and retries while
+	// the caller hears nothing. Answering it as a tool error lets the model offer a real agent straight away.
+	try {
+		return await callTool(rpcId, params, env, log);
+	} catch (e) {
+		log.outcome = "exception";
+		// Lead keys contain the caller's number and storage errors repeat the key, so long digit runs are masked.
+		log.error = String(e).replace(/\d{7,}/g, "[number]");
+		return toolFailed(rpcId);
+	}
 }
 
 async function callTool(
@@ -83,11 +89,8 @@ async function callTool(
 	env: Env,
 	log: Record<string, unknown>
 ): Promise<[number, object]> {
-	const toolName = (params.name as string) ?? "";
-	const toolArgs =
-		typeof params.arguments === "object" && params.arguments !== null
-			? (params.arguments as Record<string, unknown>)
-			: {};
+	const toolName = typeof params.name === "string" ? params.name : "";
+	const toolArgs = (params.arguments ?? {}) as Record<string, unknown>;
 
 	log.tool = toolName;
 	log.arguments = allowlistedArgs(toolArgs);
@@ -98,39 +101,33 @@ async function callTool(
 		return [200, rpcResult(rpcId, toolContent(`Unknown tool: ${toolName}`, true))];
 	}
 
-	let listings: Listing[] = [];
-	if (needsListings(toolName)) {
-		const loaded = await getListings(env);
-		if (!loaded.ok) {
-			log.outcome = "listings_unavailable";
-			log.error = loaded.error;
-			const text =
-				"I can't look up property information right now — the listing data is unavailable. Please try again in a moment.";
-			return [200, rpcResult(rpcId, toolContent(text, true))];
-		}
-		log.cache = loaded.cache;
-		listings = loaded.listings;
-	}
+	const result = await executeTool(toolName, toolArgs, env);
 
-	const result = await executeTool(toolName, toolArgs, env, listings);
+	log.cache = result.cache;
 	if (result.isError) {
 		log.outcome = result.outcome ?? "bad_args";
 		log.error = result.text;
 		return [200, rpcResult(rpcId, toolContent(result.text, true))];
 	}
-
 	log.outcome = result.outcome ?? (result.count === 0 ? "no_matches" : "ok");
-	if (result.count !== undefined) {
-		log.count = result.count;
-	}
+	log.count = result.count;
+
 	return [200, rpcResult(rpcId, toolContent(result.text, false))];
+}
+
+/** What the model hears when a tool crashed, so it offers the caller a person instead of retrying. */
+function toolFailed(rpcId: unknown): [number, object] {
+	const text =
+		"Something went wrong on our side and this didn't go through. " +
+		"Don't try again: apologise, and offer to put the caller through to one of our agents.";
+	return [200, rpcResult(rpcId, toolContent(text, true))];
 }
 
 function rpcResult(id: unknown, result: unknown): object {
 	return { jsonrpc: "2.0", id, result };
 }
 
-/** JSON-RPC 2.0 codes: -32700 parse error, -32600 invalid request, -32601 method not found, -32603 internal error. */
+/** JSON-RPC 2.0 codes: -32700 parse error, -32600 invalid request, -32601 method not found. */
 function rpcError(id: unknown, code: number, message: string): object {
 	return { jsonrpc: "2.0", id, error: { code, message } };
 }

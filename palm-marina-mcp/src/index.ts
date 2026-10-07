@@ -3,7 +3,6 @@ export { ViewingCalendar } from "./calendar";
 
 import type { Env } from "./env";
 import { TOOL_NAMES } from "./tools";
-import { adminRoute } from "./admin";
 import { authFailureReason } from "./auth";
 import { handleMcp } from "./mcp";
 
@@ -16,19 +15,20 @@ export async function handleRequest(req: Request, env: Env): Promise<Response> {
 	if (path === "/health/liveness" || path === "/health/readiness") {
 		return new Response("ok");
 	}
+
 	if (path === "/health" && method === "GET") {
 		return json(200, { status: "ok", tools: TOOL_NAMES.length });
 	}
 
-	const admin = adminRoute(path, method);
-	if (!admin && path !== "/mcp") {
+	if (path !== "/mcp") {
 		return json(404, { error: "not found" });
 	}
-	if (!admin && method !== "POST") {
+
+	if (method !== "POST") {
 		return json(405, { error: "use POST for MCP JSON-RPC" });
 	}
 
-	const log: Record<string, unknown> = admin ? { route: path.slice(1) } : {};
+	const log: Record<string, unknown> = {};
 	try {
 		const authFailure = authFailureReason(req);
 		if (authFailure) {
@@ -38,13 +38,14 @@ export async function handleRequest(req: Request, env: Env): Promise<Response> {
 			return json(401, { error: "unauthorized" });
 		}
 
-		const [status, body] = admin ? await admin(env, log) : await handleMcp(await req.text(), env, log);
+		const [status, body] = await handleMcp(await req.text(), env, log);
 		return json(status, body);
 	} catch (e) {
 		log.outcome = "exception";
 		log.error = String(e);
 		return json(500, { error: "internal server error" });
 	} finally {
+		// stderr for failures, so the platform's logs mark them as errors.
 		const line = JSON.stringify(log);
 		if (log.error || log.auth_failure) {
 			console.error(line);

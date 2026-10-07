@@ -12,15 +12,21 @@ type = "ViewingCalendar"
 bucket_name = "palm-marina-properties-listings"
 region = "eu-central-1"
 
-# KV cache in front of the bucket. Caches listings.json for one hour, and
-# stores seller leads under "lead/<id>".
-[storage.kv.CACHE]
+# KV: a one-hour copy of listings.json in front of the bucket, the seller leads under "lead/<number>",
+# and each caller's last booking, cancel or lead under "caller/<number>" for the dynamic variables webhook.
+[storage.kv.KV]
 id = "118e2838-862e-4d05-a5c6-753d72758e8a"
 
-# Stored with: telnyx-edge secrets add MCP_TOKEN <value>. Reaches the code as env.MCP_TOKEN.
+# Stored with: telnyx-edge secrets add MCP_TOKEN <value>. Reaches the code as process.env.MCP_TOKEN.
 [[secrets]]
 binding = "MCP_TOKEN"
 name = "MCP_TOKEN"
+
+# Stored with: telnyx-edge secrets add TELNYX_API_KEY <key>. Reaches the code as process.env.TELNYX_API_KEY.
+# Used by send_listing_agreement to text the seller the listing agreement link.
+[[secrets]]
+binding = "TELNYX_API_KEY"
+name = "TELNYX_API_KEY"
 
 [edge_compute]
 func_id = "f24fbfd6-116b-48c8-b16d-f7a37c92db76"

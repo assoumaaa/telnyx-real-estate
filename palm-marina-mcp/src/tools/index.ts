@@ -1,7 +1,13 @@
 import type { Env } from "../env";
-import type { Listing } from "../listings";
-import { recordSellerLead, recordSellerLeadDefinition } from "./leads";
+import { getListings, type Listing } from "../listings";
+import {
+	recordSellerLead,
+	recordSellerLeadDefinition,
+	sendListingAgreement,
+	sendListingAgreementDefinition,
+} from "./leads";
 import { searchListings, searchListingsDefinition } from "./search";
+import { estimateValue, estimateValueDefinition } from "./valuation";
 import { bookViewing, cancelViewing, getAvailableSlots, viewingDefinitions } from "./viewings";
 
 export interface ToolResult {
@@ -9,6 +15,7 @@ export interface ToolResult {
 	text: string;
 	count?: number;
 	outcome?: string;
+	cache?: "hit" | "miss";
 }
 
 export const TOOL_NAMES = [
@@ -17,22 +24,39 @@ export const TOOL_NAMES = [
 	"book_viewing",
 	"cancel_viewing",
 	"record_seller_lead",
+	"estimate_value",
+	"send_listing_agreement",
 ];
 
 export function isKnownTool(name: string): boolean {
 	return TOOL_NAMES.includes(name);
 }
 
-/** Built per request because the search tool's area list comes from the current listings. */
+/** Built per request because the area lists in search_listings and estimate_value come from the current listings. */
 export function buildTools(listings: Listing[]) {
-	return [searchListingsDefinition(listings), ...viewingDefinitions, recordSellerLeadDefinition];
+	return [
+		searchListingsDefinition(listings),
+		...viewingDefinitions,
+		recordSellerLeadDefinition,
+		estimateValueDefinition(listings),
+		sendListingAgreementDefinition,
+	];
 }
 
-export function needsListings(name: string): boolean {
-	return name !== "record_seller_lead";
+export async function executeTool(name: string, args: Record<string, unknown>, env: Env): Promise<ToolResult> {
+	if (name === "record_seller_lead") {
+		return recordSellerLead(args, env);
+	}
+
+	if (name === "send_listing_agreement") {
+		return sendListingAgreement(args);
+	}
+
+	const { listings, cache } = await getListings(env);
+	return { ...(await listingTool(name, args, env, listings)), cache };
 }
 
-export async function executeTool(
+async function listingTool(
 	name: string,
 	args: Record<string, unknown>,
 	env: Env,
@@ -47,8 +71,8 @@ export async function executeTool(
 			return bookViewing(args, env, listings);
 		case "cancel_viewing":
 			return cancelViewing(args, env, listings);
-		case "record_seller_lead":
-			return recordSellerLead(args, env);
+		case "estimate_value":
+			return estimateValue(args, listings);
 		default:
 			return { isError: true, text: `Unknown tool: ${name}` };
 	}
@@ -56,16 +80,20 @@ export async function executeTool(
 
 /** Arguments that may appear in the log. caller_name is left out on purpose: it is personal data. */
 export function allowlistedArgs(args: Record<string, unknown>): Record<string, unknown> {
-	const loggable = [
-		"purpose",
-		"area",
-		"bedrooms",
-		"budget",
-		"listing_ref",
-		"slot_id",
-		"booking_id",
-		"property_type",
-		"asking_price",
-	];
-	return Object.fromEntries(Object.entries(args).filter(([key]) => loggable.includes(key)));
+	return Object.fromEntries(
+		Object.entries(args).filter(([key]) =>
+			[
+				"purpose",
+				"area",
+				"bedrooms",
+				"budget",
+				"listing_ref",
+				"slot_id",
+				"date",
+				"property_type",
+				"asking_price",
+				"size_sqft",
+			].includes(key)
+		)
+	);
 }

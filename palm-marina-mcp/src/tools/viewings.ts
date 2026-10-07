@@ -4,6 +4,7 @@
  */
 
 import type { Slot } from "../calendar";
+import { callerPhone, rememberCaller } from "../callers";
 import type { Env } from "../env";
 import { agents, findListing, type Listing } from "../listings";
 import type { ToolResult } from ".";
@@ -29,10 +30,9 @@ export const viewingDefinitions = [
 	{
 		name: "book_viewing",
 		description:
-			"Book a property viewing with the listing's sales agent. " +
-			"Only call this after you have read the viewing details back to the caller (property, agent, day, time) and the caller confirmed yes. " +
-			"The slot_id must come from get_available_slots, never free text. " +
-			"Returns a booking id.",
+			"Book a property viewing with the listing's sales agent, under the caller's name. " +
+			"Only call this after you have read the viewing details back to the caller (name, property, day, time) and the caller confirmed yes. " +
+			"The slot_id must come from get_available_slots, never free text.",
 		inputSchema: {
 			type: "object",
 			properties: {
@@ -46,24 +46,41 @@ export const viewingDefinitions = [
 				},
 				caller_name: {
 					type: "string",
-					description: "The caller's name, from the dynamic variable {{caller_name}}. Empty for new callers.",
+					description:
+						"The name to book the viewing under. Use the caller's name if you know it; otherwise ask for it first.",
+				},
+				phone: {
+					type: "string",
+					description: "The caller's number or caller ID, as given in your instructions.",
 				},
 			},
-			required: ["listing_ref", "slot_id", "caller_name"],
+			required: ["listing_ref", "slot_id", "caller_name", "phone"],
 		},
 	},
 	{
 		name: "cancel_viewing",
-		description: "Cancel a booked viewing using its booking id. Returns whether the cancellation succeeded.",
+		description:
+			"Cancel a booked viewing, found by the caller's number and the day of the viewing. " +
+			"If nothing is found, the caller may have booked from another phone: ask the name it was booked under and try again with it.",
 		inputSchema: {
 			type: "object",
 			properties: {
-				booking_id: {
+				phone: {
 					type: "string",
-					description: "The booking id returned by book_viewing, e.g. 'BK-abc123'.",
+					description: "The caller's number or caller ID, as given in your instructions.",
+				},
+				date: {
+					type: "string",
+					description:
+						"The day of the viewing as YYYY-MM-DD, e.g. '2026-10-10'. Work it out from today's date if the caller says 'Saturday' or 'tomorrow'.",
+				},
+				caller_name: {
+					type: "string",
+					description:
+						"Only when nothing was found under the caller's number: the name the viewing was booked under, as the caller said it. Never guess.",
 				},
 			},
-			required: ["booking_id"],
+			required: ["phone", "date"],
 		},
 	},
 ];
@@ -73,20 +90,22 @@ export async function getAvailableSlots(
 	env: Env,
 	listings: Listing[]
 ): Promise<ToolResult> {
-	const ref = args.listing_ref as string | undefined;
-	if (!ref || typeof ref !== "string") {
+	const ref = typeof args.listing_ref === "string" ? args.listing_ref.trim() : "";
+	if (!ref) {
 		return { isError: true, text: "listing_ref is required" };
 	}
+
 	const listing = findListing(ref, listings);
 	if (!listing) {
 		return { isError: true, text: `Unknown listing reference: ${ref}` };
 	}
 
 	const calendar = env.CALENDAR.idFromName(actorNameFor(listing.agent));
-	const { slots } = await calendar.getAvailableSlots(4);
+	const { slots } = await calendar.getAvailableSlots();
 	if (slots.length === 0) {
 		return { isError: false, text: `There are no free viewing times for ${ref} in the next 7 days.` };
 	}
+
 	const parts = slots.map((s) => `${s.voice} (id: ${s.id})`);
 	return {
 		isError: false,
@@ -95,31 +114,52 @@ export async function getAvailableSlots(
 }
 
 export async function bookViewing(args: Record<string, unknown>, env: Env, listings: Listing[]): Promise<ToolResult> {
-	const ref = args.listing_ref as string | undefined;
-	const slotId = args.slot_id as string | undefined;
-	const callerName = (args.caller_name as string | undefined) ?? "";
+	const ref = typeof args.listing_ref === "string" ? args.listing_ref.trim() : "";
+	const slotId = typeof args.slot_id === "string" ? args.slot_id.trim() : "";
+	const callerName = typeof args.caller_name === "string" ? args.caller_name.trim() : "";
+	const phone = callerPhone(args);
 
-	if (!ref || typeof ref !== "string") {
+	if (!ref) {
 		return { isError: true, text: "listing_ref is required" };
 	}
-	if (!slotId || typeof slotId !== "string") {
+
+	if (!slotId) {
 		return { isError: true, text: "slot_id is required" };
 	}
+
+	if (!callerName) {
+		return { isError: true, text: "caller_name is required: ask the caller for their name before booking" };
+	}
+
+	if (!phone) {
+		return {
+			isError: true,
+			text: "phone is required: use the caller's number from your instructions, not a placeholder",
+		};
+	}
+
 	const listing = findListing(ref, listings);
 	if (!listing) {
 		return { isError: true, text: `Unknown listing reference: ${ref}` };
 	}
 
 	const calendar = env.CALENDAR.idFromName(actorNameFor(listing.agent));
-	const result = await calendar.bookViewing(slotId, callerName, ref);
+	const result = await calendar.bookViewing(slotId, callerName, phone, ref);
 
 	if (result.status === "booked") {
+		await rememberCaller(env, phone, callerName, {
+			last_action: "booked_viewing",
+			listing_ref: ref,
+			agent: listing.agent,
+			viewing: result.slotId,
+		});
 		return {
 			isError: false,
-			text: `Booking confirmed. ID ${result.bookingId}. Viewing with ${listing.agent} on ${result.slotVoice} Dubai time for ${ref}.`,
+			text: `Booking confirmed under the name ${callerName}: viewing of ${ref} with ${listing.agent} on ${result.slotVoice} Dubai time.`,
 			outcome: "booked",
 		};
 	}
+
 	if (result.status === "slot_taken") {
 		return {
 			isError: false,
@@ -127,27 +167,53 @@ export async function bookViewing(args: Record<string, unknown>, env: Env, listi
 			outcome: "slot_taken",
 		};
 	}
+
 	return {
 		isError: true,
 		text: `That is not a valid slot id. Call get_available_slots first to get a valid one. ${formatSlots(result.nextSlots)}`,
 	};
 }
 
-/** The booking id doesn't say which agent it belongs to, so ask each agent's calendar. */
 export async function cancelViewing(args: Record<string, unknown>, env: Env, listings: Listing[]): Promise<ToolResult> {
-	const bookingId = args.booking_id as string | undefined;
-	if (!bookingId || typeof bookingId !== "string") {
-		return { isError: true, text: "booking_id is required" };
+	const phone = callerPhone(args);
+	const date = typeof args.date === "string" ? args.date.trim() : "";
+	const callerName = typeof args.caller_name === "string" ? args.caller_name.trim() : "";
+
+	if (!phone) {
+		return {
+			isError: true,
+			text: "phone is required: use the caller's number from your instructions, not a placeholder",
+		};
+	}
+
+	if (!date) {
+		return { isError: true, text: "date is required" };
 	}
 
 	for (const agent of agents(listings)) {
 		const calendar = env.CALENDAR.idFromName(actorNameFor(agent));
-		const result = await calendar.cancelViewing(bookingId);
+		const result = await calendar.cancelViewing(phone, callerName, date);
+
 		if (result.status === "cancelled") {
-			return { isError: false, text: `Viewing ${result.bookingId} has been cancelled.`, outcome: "cancelled" };
+			await rememberCaller(env, phone, result.callerName, {
+				last_action: "cancelled_viewing",
+				viewing: result.slotId,
+			});
+			return {
+				isError: false,
+				text: `The viewing on ${result.slotVoice} has been cancelled.`,
+				outcome: "cancelled",
+			};
 		}
 	}
-	return { isError: true, text: `I couldn't find a booking with ID ${bookingId}.`, outcome: "not_found" };
+
+	return {
+		isError: false,
+		text: callerName
+			? `I couldn't find a viewing under the name ${callerName} on ${date}. Check the name and the day with the caller.`
+			: `I couldn't find a viewing from this caller's number on ${date}. Check the day, and if they booked from another phone, ask the name it was booked under and try again with it.`,
+		outcome: "not_found",
+	};
 }
 
 /**
@@ -162,6 +228,7 @@ function formatSlots(slots: Slot[]): string {
 	if (slots.length === 0) {
 		return "There are no free times available";
 	}
+
 	const parts = slots.map((s) => `${s.voice} (id: ${s.id})`);
 	return `The next free times are: ${parts.join(", ")}`;
 }

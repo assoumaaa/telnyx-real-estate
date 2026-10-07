@@ -20,35 +20,35 @@ export interface Listing {
 	features: string[];
 }
 
-export const LISTINGS_KV_KEY = "listings/v1";
+const LISTINGS_KV_KEY = "listings/v1";
 
-export type ListingsResult = { ok: true; listings: Listing[]; cache: "hit" | "miss" } | { ok: false; error: string };
-
-export async function getListings(env: Env): Promise<ListingsResult> {
-	const cached = await env.CACHE.get<Listing[]>(LISTINGS_KV_KEY, { type: "json" });
+/**
+ * The listings from the KV cache, or from the bucket on a miss. Throws when they can't be read, so a failure is never
+ * hidden behind stale or empty data: a tool call then answers with a tool error, and tools/list with a 500.
+ */
+export async function getListings(env: Env): Promise<{ listings: Listing[]; cache: "hit" | "miss" }> {
+	const cached = await env.KV.get<Listing[]>(LISTINGS_KV_KEY, { type: "json" });
 	if (cached !== null) {
-		return { ok: true, listings: cached, cache: "hit" };
+		return { listings: cached, cache: "hit" };
 	}
 
-	// On a miss, read the bucket. Any failure is reported, never hidden behind stale or empty data.
-	try {
-		const obj = await env.FILES.get("listings.json");
-		if (obj === null) {
-			return { ok: false, error: 'listings.json not found in the bucket (key "listings.json")' };
-		}
-		if (!("body" in obj)) {
-			return { ok: false, error: 'listings.json exists but has no body (key "listings.json")' };
-		}
-		const parsed = await obj.json();
-		if (!Array.isArray(parsed)) {
-			return { ok: false, error: "listings.json is not a JSON array" };
-		}
-		const listings = parsed as Listing[];
-		await env.CACHE.put(LISTINGS_KV_KEY, JSON.stringify(listings), { expirationTtl: 3600 });
-		return { ok: true, listings, cache: "miss" };
-	} catch (e) {
-		return { ok: false, error: `could not read listings from the bucket: ${String(e)}` };
+	const obj = await env.FILES.get("listings.json");
+	if (obj === null) {
+		throw new Error('listings.json not found in the bucket (key "listings.json")');
 	}
+
+	if (!("body" in obj)) {
+		throw new Error('listings.json exists but has no body (key "listings.json")');
+	}
+
+	const parsed = await obj.json();
+	if (!Array.isArray(parsed)) {
+		throw new Error("listings.json is not a JSON array");
+	}
+
+	const listings = parsed as Listing[];
+	await env.KV.put(LISTINGS_KV_KEY, JSON.stringify(listings), { expirationTtl: 3600 });
+	return { listings, cache: "miss" };
 }
 
 export function findListing(ref: string, listings: Listing[]): Listing | undefined {
@@ -71,11 +71,10 @@ export function filterListings(
 	bedrooms?: number,
 	budget?: number
 ): Listing[] {
-	const canonical = area?.trim();
 	return listings.filter(
 		(listing) =>
 			(!purpose || listing.purpose === purpose) &&
-			(!canonical || listing.area.toLowerCase() === canonical.toLowerCase()) &&
+			(!area || listing.area === area) &&
 			(bedrooms === undefined || listing.bedrooms === bedrooms) &&
 			(budget === undefined || listing.price_aed <= budget)
 	);
@@ -109,9 +108,11 @@ export function formatAmount(amount: number): string {
 	if (amount >= 1_000_000) {
 		return `${trimFloat(amount / 1_000_000)} million`;
 	}
+
 	if (amount >= 1_000) {
 		return `${trimFloat(amount / 1_000)} thousand`;
 	}
+
 	return String(amount);
 }
 
@@ -124,6 +125,7 @@ function describe(listing: Listing): string {
 	const amount = formatAmount(listing.price_aed);
 	const price = listing.purpose === "buy" ? `priced at ${amount} dirhams` : `rented at ${amount} dirhams per year`;
 	const features = listing.features.slice(0, 3).join(", ");
+
 	// The reference is for the booking tools; the tool description tells the model never to read it aloud.
 	return (
 		`a ${rooms} ${listing.type} in ${listing.area}, ${listing.size_sqft} square feet, ${price}. ` +

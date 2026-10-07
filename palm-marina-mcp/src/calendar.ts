@@ -6,10 +6,10 @@ export interface Slot {
 	utcMs: number;
 }
 
-export interface Booking {
-	bookingId: string;
+interface Booking {
 	slotId: string;
 	callerName: string;
+	phone: string;
 	listingRef: string;
 	bookedAt: string;
 }
@@ -19,12 +19,17 @@ export interface AvailableSlotsResult {
 }
 
 export type BookResult =
-	| { status: "booked"; bookingId: string; slotId: string; slotVoice: string }
+	| { status: "booked"; slotId: string; slotVoice: string }
 	| { status: "slot_taken"; slotId: string; nextSlots: Slot[] }
 	| { status: "invalid_slot"; nextSlots: Slot[] };
 
-export type CancelResult = { status: "cancelled"; bookingId: string } | { status: "not_found" };
+export type CancelResult =
+	{ status: "cancelled"; slotId: string; slotVoice: string; callerName: string } | { status: "not_found" };
 
+type BookingMap = Record<string, Booking>;
+
+const STORAGE_KEY = "bookings";
+const NEXT_SLOTS = 4;
 const DUBAI_OFFSET_HOURS = 4;
 const SLOT_HOURS = [10, 12, 14, 16];
 const spokenTime = new Intl.DateTimeFormat("en-GB", {
@@ -49,6 +54,7 @@ export function generateSlots(now: Date, daysAhead = 7): Slot[] {
 				dubaiToday.getUTCDate() + day,
 				hour - DUBAI_OFFSET_HOURS
 			);
+
 			if (utcMs <= now.getTime()) {
 				continue;
 			}
@@ -61,22 +67,13 @@ export function generateSlots(now: Date, daysAhead = 7): Slot[] {
 	return slots;
 }
 
-const STORAGE_KEY = "bookings";
-const NEXT_SLOTS = 4;
-
-type BookingMap = Record<string, Booking>;
-
-function makeBookingId(): string {
-	return `BK-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-}
-
 export class ViewingCalendar extends StatefulActor {
 	async getAvailableSlots(limit = NEXT_SLOTS): Promise<AvailableSlotsResult> {
 		const bookings = await this.bookings();
 		return { slots: freeSlots(bookings).slice(0, limit) };
 	}
 
-	async bookViewing(slotId: string, callerName: string, listingRef: string): Promise<BookResult> {
+	async bookViewing(slotId: string, callerName: string, phone: string, listingRef: string): Promise<BookResult> {
 		const bookings = await this.bookings();
 		const slot = generateSlots(new Date()).find((s) => s.id === slotId);
 		if (!slot) {
@@ -87,26 +84,35 @@ export class ViewingCalendar extends StatefulActor {
 			return { status: "slot_taken", slotId, nextSlots: freeSlots(bookings).slice(0, NEXT_SLOTS) };
 		}
 
-		const bookingId = makeBookingId();
-		bookings[slotId] = { bookingId, slotId, callerName, listingRef, bookedAt: new Date().toISOString() };
+		bookings[slotId] = { slotId, callerName, phone, listingRef, bookedAt: new Date().toISOString() };
 		await this.ctx.storage.put(STORAGE_KEY, bookings);
-		return { status: "booked", bookingId, slotId, slotVoice: slot.voice };
+		return { status: "booked", slotId, slotVoice: slot.voice };
 	}
 
-	async cancelViewing(bookingId: string): Promise<CancelResult> {
+	/**
+	 * Finds the booking on that day (e.g. "2026-10-10"; every slot id starts with its day) made from the caller's
+	 * number, or under their name when they call from another phone. An empty name never matches.
+	 */
+	async cancelViewing(phone: string, callerName: string, date: string): Promise<CancelResult> {
 		const bookings = await this.bookings();
-		const slotId = Object.keys(bookings).find((id) => bookings[id].bookingId === bookingId);
-		if (!slotId) {
+		const booking = Object.values(bookings).find(
+			(b) =>
+				b.slotId.startsWith(date) &&
+				(b.phone === phone || (callerName !== "" && b.callerName.toLowerCase() === callerName.toLowerCase()))
+		);
+
+		if (!booking) {
 			return { status: "not_found" };
 		}
 
-		delete bookings[slotId];
+		delete bookings[booking.slotId];
 		await this.ctx.storage.put(STORAGE_KEY, bookings);
-		return { status: "cancelled", bookingId };
-	}
-
-	async listBookings(): Promise<Booking[]> {
-		return Object.values(await this.bookings());
+		return {
+			status: "cancelled",
+			slotId: booking.slotId,
+			slotVoice: spokenTime.format(new Date(booking.slotId)),
+			callerName: booking.callerName,
+		};
 	}
 
 	private async bookings(): Promise<BookingMap> {
