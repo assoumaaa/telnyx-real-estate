@@ -16,7 +16,7 @@
     "@types/node": "^18.0.0",
     "prettier": "3.9.9",
     "typescript": "^5.0.0",
-    "vitest": "^2.0.0"
+    "vitest": "^4.1.11"
   },
   "engines": {
     "node": ">=18.0.0"
